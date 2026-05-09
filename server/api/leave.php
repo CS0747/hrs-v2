@@ -13,10 +13,51 @@ switch ($method) {
             $stmt->bind_param('i', $id);
             $stmt->execute();
             $row = $stmt->get_result()->fetch_assoc();
-            $row ? sendJson($row) : sendError('Record not found', 404);
+            if ($row) {
+                // Map snake_case to camelCase for frontend
+                $mapped = [
+                    'id' => (int)$row['id'],
+                    'employeeId' => $row['employee_id'] ? (int)$row['employee_id'] : null,
+                    'employeeNo' => $row['employee_no'],
+                    'employeeName' => $row['employee_name'],
+                    'department' => $row['department'],
+                    'leaveType' => $row['leave_type'],
+                    'dateFrom' => $row['date_from'],
+                    'dateTo' => $row['date_to'],
+                    'days' => (float)$row['days'],
+                    'reason' => $row['reason'],
+                    'status' => $row['status'],
+                    'approvedBy' => $row['approved_by'],
+                    'dateApproved' => $row['date_approved'],
+                    'remarks' => $row['remarks']
+                ];
+                sendJson($mapped);
+            } else {
+                sendError('Record not found', 404);
+            }
         } else {
             $result = $conn->query('SELECT * FROM leave_records ORDER BY date_from DESC');
-            sendJson($result->fetch_all(MYSQLI_ASSOC));
+            $rows = $result->fetch_all(MYSQLI_ASSOC);
+            // Map all rows to camelCase
+            $mapped = array_map(function($row) {
+                return [
+                    'id' => (int)$row['id'],
+                    'employeeId' => $row['employee_id'] ? (int)$row['employee_id'] : null,
+                    'employeeNo' => $row['employee_no'],
+                    'employeeName' => $row['employee_name'],
+                    'department' => $row['department'],
+                    'leaveType' => $row['leave_type'],
+                    'dateFrom' => $row['date_from'],
+                    'dateTo' => $row['date_to'],
+                    'days' => (float)$row['days'],
+                    'reason' => $row['reason'],
+                    'status' => $row['status'],
+                    'approvedBy' => $row['approved_by'],
+                    'dateApproved' => $row['date_approved'],
+                    'remarks' => $row['remarks']
+                ];
+            }, $rows);
+            sendJson($mapped);
         }
         break;
 

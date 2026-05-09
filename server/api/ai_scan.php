@@ -84,7 +84,20 @@ switch ($method) {
 
             if (in_array($ext, ['jpg','jpeg','png','gif','bmp','webp'])) {
                 $previewUrl = $webPath;
-
+                // ── OCR.space API for image scanning ──────────────────────────
+                $ocrResult  = ocrSpaceScan($destPath, $origName);
+                $rawText    = $ocrResult['text'];
+                $confidence = $ocrResult['confidence'];
+                
+                if ($rawText) {
+                    $htmlTable = buildOcrHtml($rawText);
+                    $extracted = parseText($rawText, $docType);
+                    
+                    // Enhance confidence based on extraction quality
+                    if (!empty($extracted) && count($extracted) > 3) {
+                        $confidence = min(95, $confidence + 5);
+                    }
+                }
             } elseif ($ext === 'pdf') {
                 $previewUrl = $webPath;
                 // Try pdftotext first (if available)
@@ -548,4 +561,107 @@ function extractDocx(string $path): array {
 
     $html .= '</div>';
     return ['text' => trim($rawText), 'html_table' => $html];
+}
+
+// ── OCR.space API integration ─────────────────────────────────────────────────
+function ocrSpaceScan(string $filePath, string $fileName): array {
+    $apiKey   = 'K83763523288957';
+    $endpoint = 'https://api.ocr.space/parse/image';
+
+    // Build multipart form data
+    $boundary = '----OCRBoundary' . uniqid();
+    $body     = '';
+
+    // File field
+    $mimeType = mime_content_type($filePath);
+    $fileData = file_get_contents($filePath);
+    if (!$fileData) return ['text' => '', 'confidence' => 0];
+
+    $body .= "--{$boundary}\r\n";
+    $body .= "Content-Disposition: form-data; name=\"file\"; filename=\"{$fileName}\"\r\n";
+    $body .= "Content-Type: {$mimeType}\r\n\r\n";
+    $body .= $fileData . "\r\n";
+
+    // Enhanced parameters for maximum data extraction
+    $params = [
+        'apikey'              => $apiKey,
+        'language'            => 'eng',
+        'isOverlayRequired'   => 'true',
+        'detectOrientation'   => 'true',
+        'scale'               => 'true',
+        'OCREngine'           => '2',
+        'isTable'             => 'true',
+        'filetype'            => strtoupper(pathinfo($fileName, PATHINFO_EXTENSION)),
+    ];
+    
+    foreach ($params as $key => $val) {
+        $body .= "--{$boundary}\r\n";
+        $body .= "Content-Disposition: form-data; name=\"{$key}\"\r\n\r\n";
+        $body .= $val . "\r\n";
+    }
+    $body .= "--{$boundary}--\r\n";
+
+    $context = stream_context_create([
+        'http' => [
+            'method'  => 'POST',
+            'header'  => "Content-Type: multipart/form-data; boundary={$boundary}\r\n" .
+                         "Content-Length: " . strlen($body) . "\r\n",
+            'content' => $body,
+            'timeout' => 90,
+            'ignore_errors' => true,
+        ],
+    ]);
+
+    $response = @file_get_contents($endpoint, false, $context);
+    if (!$response) return ['text' => '', 'confidence' => 0];
+
+    $json = json_decode($response, true);
+    if (!$json || !isset($json['ParsedResults'])) {
+        return ['text' => '', 'confidence' => 0];
+    }
+
+    $fullText   = '';
+    $totalConf  = 0;
+    $pageCount  = 0;
+
+    foreach ($json['ParsedResults'] as $page) {
+        if (!empty($page['ParsedText'])) {
+            $fullText  .= $page['ParsedText'] . "\n";
+            $totalConf += (float)($page['TextOverlay']['MeanConfidence'] ?? 85);
+            $pageCount++;
+        }
+    }
+
+    $confidence = $pageCount > 0 ? (int)round($totalConf / $pageCount) : 0;
+    if ($confidence === 0 && $fullText) $confidence = 85;
+
+    return [
+        'text'       => trim($fullText),
+        'confidence' => min($confidence, 99),
+    ];
+}
+
+// ── Build HTML from OCR text ──────────────────────────────────────────────────
+function buildOcrHtml(string $text): string {
+    if (!$text) return '';
+    $lines = explode("\n", $text);
+    $html  = '<div class="docx-body">';
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if (!$line) { $html .= '<br>'; continue; }
+        // Detect table-like rows (multiple tab/space separated columns)
+        $cols = preg_split('/\t|  {2,}/', $line);
+        $cols = array_filter(array_map('trim', $cols));
+        if (count($cols) >= 3) {
+            $html .= '<p class="docx-p ocr-row">';
+            foreach ($cols as $col) {
+                $html .= '<span class="ocr-cell">' . htmlspecialchars($col, ENT_QUOTES, 'UTF-8') . '</span>';
+            }
+            $html .= '</p>';
+        } else {
+            $html .= '<p class="docx-p">' . htmlspecialchars($line, ENT_QUOTES, 'UTF-8') . '</p>';
+        }
+    }
+    $html .= '</div>';
+    return $html;
 }
