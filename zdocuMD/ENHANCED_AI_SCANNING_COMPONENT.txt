@@ -1,0 +1,210 @@
+===========================================
+COPY THIS CODE TO: client/src/views/ai/AIScanningTools.vue
+===========================================
+
+Add these lines to the script section:
+
+1. Find this line (around line 40):
+   const errorMsg      = ref('')
+
+2. Add these lines RIGHT AFTER it:
+
+// Designate & Save state
+const selectedDestination = ref('')
+const designating = ref(false)
+const designateResult = ref(null)
+
+3. Find the saveScan function (around line 600)
+
+4. Add this NEW function RIGHT AFTER the saveScan function:
+
+// -- Designate & Save to Database Module ---------------------------------------
+async function designateAndSave() {
+  if (!selectedDestination.value || !selectedScan.value) {
+    alert('⚠️ Please select a destination first')
+    return
+  }
+  
+  designating.value = true
+  designateResult.value = null
+  
+  try {
+    // Prepare scan data based on document type
+    let scanData = {}
+    
+    if (selectedScan.value.doc_type === 'Schedule' && selectedScan.value.extracted_data) {
+      // For schedules, send the parsed schedule data
+      scanData = selectedScan.value.extracted_data
+    } else if (selectedScan.value.html_table) {
+      // For spreadsheets, extract rows
+      scanData = {
+        rows: extractTableRows(selectedScan.value.html_table),
+        department: selectedScan.value.extracted_data?.department || ''
+      }
+    } else {
+      // For other documents, send extracted data
+      scanData = selectedScan.value.extracted_data || {}
+    }
+    
+    const res = await fetch('http://localhost/hrs/server/api/ai_scan_designate.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        destination: selectedDestination.value,
+        scan_data: scanData,
+        scan_id: selectedScan.value.id
+      })
+    })
+    
+    const result = await res.json()
+    if (!res.ok) throw new Error(result.error || 'Save failed')
+    
+    designateResult.value = result
+    
+    // Show success message
+    const msg = `✅ Successfully saved to ${getDestinationName(selectedDestination.value)}!\n\n` +
+                `📊 Results:\n` +
+                `• Inserted: ${result.inserted}\n` +
+                `• Updated: ${result.updated}\n` +
+                `• Skipped: ${result.skipped}\n\n` +
+                (result.errors.length > 0 ? `⚠️ Errors:\n${result.errors.join('\n')}` : '')
+    
+    alert(msg)
+    
+    // Mark as saved
+    selectedScan.value._saved = true
+    selectedScan.value.status = `Saved to ${getDestinationName(selectedDestination.value)}`
+    
+    // Refresh saved scans
+    await loadSavedScans()
+    
+  } catch (e) {
+    alert('❌ Error: ' + e.message)
+    console.error('Designate & Save error:', e)
+  } finally {
+    designating.value = false
+  }
+}
+
+function getDestinationName(dest) {
+  const names = {
+    'employee_masterlist': 'Employee Masterlist',
+    'birthday_celebrants': 'Birthday Celebrants',
+    'schedule_database': 'Schedule Database'
+  }
+  return names[dest] || dest
+}
+
+function extractTableRows(htmlTable) {
+  // Simple HTML table parser
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(htmlTable, 'text/html')
+  const rows = []
+  
+  doc.querySelectorAll('tr').forEach(tr => {
+    const row = []
+    tr.querySelectorAll('th, td').forEach(cell => {
+      row.push(cell.textContent.trim())
+    })
+    if (row.length > 0) rows.push(row)
+  })
+  
+  return rows
+}
+
+===========================================
+TEMPLATE CHANGES
+===========================================
+
+5. Find this section in the template (search for "preview-actions"):
+
+          <!-- Actions -->
+          <div class="preview-actions">
+            <button v-if="!selectedScan._saved" class="btn btn-primary" @click="saveScan(selectedScan)" :disabled="saving">
+
+6. REPLACE the entire <div class="preview-actions"> section with this:
+
+          <!-- Actions -->
+          <div class="preview-actions-wrapper">
+            <!-- Designate & Save Section -->
+            <div v-if="!selectedScan._saved" class="designate-section">
+              <div class="designate-header">
+                <span class="designate-icon">📍</span>
+                <strong>Designate & Save to Database</strong>
+              </div>
+              <div class="designate-body">
+                <label class="designate-label">Select destination module:</label>
+                <select v-model="selectedDestination" class="destination-select">
+                  <option value="">-- Choose where to save --</option>
+                  <option value="employee_masterlist">👥 Employee Masterlist</option>
+                  <option value="birthday_celebrants">🎂 Birthday Celebrants</option>
+                  <option value="schedule_database">📅 Schedule Database</option>
+                </select>
+                
+                <button 
+                  class="btn btn-designate" 
+                  @click="designateAndSave"
+                  :disabled="!selectedDestination || designating"
+                >
+                  <span v-if="designating" class="btn-spinner">⏳</span>
+                  <span v-else>💾</span>
+                  {{ designating ? 'Saving to Database...' : 'Designate & Save' }}
+                </button>
+                
+                <div v-if="designateResult" class="designate-result">
+                  <div class="result-success">
+                    ✅ Saved successfully!
+                  </div>
+                  <div class="result-stats">
+                    <span class="stat-item">📥 Inserted: <strong>{{ designateResult.inserted }}</strong></span>
+                    <span class="stat-item">🔄 Updated: <strong>{{ designateResult.updated }}</strong></span>
+                    <span class="stat-item">⏭️ Skipped: <strong>{{ designateResult.skipped }}</strong></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Original Actions -->
+            <div class="preview-actions">
+              <button v-if="!selectedScan._saved" class="btn btn-secondary" @click="saveScan(selectedScan)" :disabled="saving">
+                <span v-html="icons.save"></span>
+                {{ saving ? 'Saving...' : 'Save Scan Record' }}
+              </button>
+              <span v-else class="saved-badge">✅ Saved to database</span>
+              <button class="btn btn-export-excel" @click="exportToExcel(selectedScan)">📊 Export Excel</button>
+              <button class="btn btn-export-word" @click="exportToWord(selectedScan)">📄 Export Word</button>
+              <button class="btn btn-secondary" @click="closePreview">Close</button>
+            </div>
+          </div>
+
+===========================================
+CSS CHANGES
+===========================================
+
+7. Find the end of the <style scoped> section (search for the last closing brace })
+
+8. Add these CSS rules BEFORE the final closing brace:
+
+/* Designate & Save Section */
+.preview-actions-wrapper { display: flex; flex-direction: column; gap: 16px; }
+.designate-section { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 16px; color: #fff; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3); }
+.designate-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 14px; }
+.designate-icon { font-size: 20px; }
+.designate-body { display: flex; flex-direction: column; gap: 10px; }
+.designate-label { font-size: 12px; font-weight: 600; opacity: 0.9; }
+.destination-select { padding: 10px 12px; border: 2px solid rgba(255,255,255,0.3); border-radius: 8px; font-size: 14px; background: rgba(255,255,255,0.95); color: #333; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.destination-select:hover { border-color: rgba(255,255,255,0.6); background: #fff; }
+.destination-select:focus { outline: none; border-color: #fff; box-shadow: 0 0 0 3px rgba(255,255,255,0.3); }
+.btn-designate { background: #fff; color: #667eea; padding: 12px 20px; border-radius: 8px; border: none; font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+.btn-designate:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.2); }
+.btn-designate:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-spinner { animation: spin 1s linear infinite; display: inline-block; }
+.designate-result { background: rgba(255,255,255,0.15); border-radius: 8px; padding: 12px; margin-top: 8px; }
+.result-success { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.result-stats { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; }
+.stat-item { background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 6px; }
+.stat-item strong { font-weight: 700; }
+
+===========================================
+DONE! Save the file and test.
+===========================================

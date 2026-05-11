@@ -33,7 +33,7 @@ switch ($method) {
              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
         );
         $stmt->bind_param(
-            'issssssdddddddddddds s',
+            'issssssdddddddddddss',
             $data['employee_id'],
             $data['employee_no'],
             $data['employee_name'],
@@ -74,7 +74,7 @@ switch ($method) {
              WHERE id=?'
         );
         $stmt->bind_param(
-            'issssssddddddddddddss i',
+            'issssssddddddddddddssi',
             $data['employee_id'],
             $data['employee_no'],
             $data['employee_name'],

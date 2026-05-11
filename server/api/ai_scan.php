@@ -568,13 +568,17 @@ function ocrSpaceScan(string $filePath, string $fileName): array {
     $apiKey   = 'K83763523288957';
     $endpoint = 'https://api.ocr.space/parse/image';
 
+    // Preprocess image for better OCR accuracy
+    $processedPath = preprocessImageForOCR($filePath);
+    if (!$processedPath) $processedPath = $filePath;
+
     // Build multipart form data
     $boundary = '----OCRBoundary' . uniqid();
     $body     = '';
 
     // File field
-    $mimeType = mime_content_type($filePath);
-    $fileData = file_get_contents($filePath);
+    $mimeType = mime_content_type($processedPath);
+    $fileData = file_get_contents($processedPath);
     if (!$fileData) return ['text' => '', 'confidence' => 0];
 
     $body .= "--{$boundary}\r\n";
@@ -613,6 +617,12 @@ function ocrSpaceScan(string $filePath, string $fileName): array {
     ]);
 
     $response = @file_get_contents($endpoint, false, $context);
+    
+    // Clean up processed image if different from original
+    if ($processedPath !== $filePath && file_exists($processedPath)) {
+        @unlink($processedPath);
+    }
+    
     if (!$response) return ['text' => '', 'confidence' => 0];
 
     $json = json_decode($response, true);
@@ -626,7 +636,10 @@ function ocrSpaceScan(string $filePath, string $fileName): array {
 
     foreach ($json['ParsedResults'] as $page) {
         if (!empty($page['ParsedText'])) {
-            $fullText  .= $page['ParsedText'] . "\n";
+            $rawText = $page['ParsedText'];
+            // Post-process OCR text for better accuracy
+            $cleanedText = postProcessOCRText($rawText);
+            $fullText  .= $cleanedText . "\n";
             $totalConf += (float)($page['TextOverlay']['MeanConfidence'] ?? 85);
             $pageCount++;
         }
@@ -639,6 +652,131 @@ function ocrSpaceScan(string $filePath, string $fileName): array {
         'text'       => trim($fullText),
         'confidence' => min($confidence, 99),
     ];
+}
+
+// ── Image preprocessing for better OCR ────────────────────────────────────────
+function preprocessImageForOCR(string $filePath): ?string {
+    // Check if GD library is available
+    if (!function_exists('imagecreatefromjpeg')) return null;
+
+    $ext = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+    
+    // Load image based on type
+    $img = null;
+    switch ($ext) {
+        case 'jpg':
+        case 'jpeg':
+            $img = @imagecreatefromjpeg($filePath);
+            break;
+        case 'png':
+            $img = @imagecreatefrompng($filePath);
+            break;
+        case 'gif':
+            $img = @imagecreatefromgif($filePath);
+            break;
+        case 'bmp':
+            $img = @imagecreatefrombmp($filePath);
+            break;
+        case 'webp':
+            $img = @imagecreatefromwebp($filePath);
+            break;
+        default:
+            return null;
+    }
+
+    if (!$img) return null;
+
+    $width  = imagesx($img);
+    $height = imagesy($img);
+
+    // Step 1: Upscale if image is too small (min 1500px on longest side)
+    $minSize = 1500;
+    $maxDim  = max($width, $height);
+    if ($maxDim < $minSize) {
+        $scale     = $minSize / $maxDim;
+        $newWidth  = (int)($width * $scale);
+        $newHeight = (int)($height * $scale);
+        $scaled    = imagecreatetruecolor($newWidth, $newHeight);
+        imagecopyresampled($scaled, $img, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
+        imagedestroy($img);
+        $img    = $scaled;
+        $width  = $newWidth;
+        $height = $newHeight;
+    }
+
+    // Step 2: Convert to grayscale and enhance contrast
+    imagefilter($img, IMG_FILTER_GRAYSCALE);
+    imagefilter($img, IMG_FILTER_CONTRAST, -15); // Increase contrast
+
+    // Step 3: Sharpen for better edge detection
+    $sharpenMatrix = [
+        [-1, -1, -1],
+        [-1, 16, -1],
+        [-1, -1, -1]
+    ];
+    $divisor = 8;
+    $offset  = 0;
+    imageconvolution($img, $sharpenMatrix, $divisor, $offset);
+
+    // Step 4: Slight brightness adjustment
+    imagefilter($img, IMG_FILTER_BRIGHTNESS, 10);
+
+    // Save processed image
+    $tempPath = sys_get_temp_dir() . '/ocr_processed_' . uniqid() . '.png';
+    imagepng($img, $tempPath, 0); // 0 = no compression for best quality
+    imagedestroy($img);
+
+    return $tempPath;
+}
+
+// ── Post-process OCR text for better accuracy ─────────────────────────────────
+function postProcessOCRText(string $text): string {
+    // Common OCR mistakes and corrections
+    $corrections = [
+        // Number confusions
+        '/\b[Oo0]{2}\b/'      => 'O',  // oo or 00 → O (Off Duty)
+        '/\b8[5S]\b/'         => '85', // 8S → 85
+        '/\b[Il1]\s*[Il1]\b/' => '11', // Il or 1l → 11
+        
+        // Letter confusions in common words
+        '/\bH[0O]UR[S5]?\b/i'     => 'HOURS',
+        '/\bN[A4]ME\b/i'          => 'NAME',
+        '/\bD[A4]TE\b/i'          => 'DATE',
+        '/\bDEP[A4]RTMENT\b/i'    => 'DEPARTMENT',
+        '/\bEMPL[O0]YEE\b/i'      => 'EMPLOYEE',
+        '/\bSCHEDULE\b/i'         => 'SCHEDULE',
+        '/\bDUT[I1]ES\b/i'        => 'DUTIES',
+        
+        // Common schedule-related terms
+        '/\bGE[A4]MH\b/i'         => 'GEAMH',
+        '/\bKPFP\b/i'             => 'KPFP',
+        '/\bOPH[O0]\b/i'          => 'OPHO',
+        
+        // Remove excessive spaces
+        '/\s{3,}/'                => '  ', // 3+ spaces → 2 spaces
+        '/\t+/'                   => "\t", // Multiple tabs → single tab
+    ];
+
+    foreach ($corrections as $pattern => $replacement) {
+        $text = preg_replace($pattern, $replacement, $text);
+    }
+
+    // Fix common character substitutions in table data
+    $text = str_replace([
+        '|85|', '[85]', '(85)', '{85}',  // Bracketed 85
+        '|O|', '[O]', '(O)', '{O}',      // Bracketed O
+        '|H|', '[H]', '(H)', '{H}',      // Bracketed H
+    ], [
+        '85', '85', '85', '85',
+        'O', 'O', 'O', 'O',
+        'H', 'H', 'H', 'H',
+    ], $text);
+
+    // Clean up line breaks
+    $text = preg_replace('/\r\n|\r/', "\n", $text);
+    $text = preg_replace('/\n{3,}/', "\n\n", $text);
+
+    return trim($text);
 }
 
 // ── Build HTML from OCR text ──────────────────────────────────────────────────
