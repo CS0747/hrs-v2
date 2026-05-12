@@ -15,7 +15,7 @@ switch ($method) {
             $row = $stmt->get_result()->fetch_assoc();
             $row ? sendJson($row) : sendError('Record not found', 404);
         } else {
-            $result = $conn->query('SELECT * FROM document_tracking ORDER BY date_forwarded DESC');
+            $result = $conn->query('SELECT * FROM document_tracking ORDER BY created_at DESC');
             sendJson($result->fetch_all(MYSQLI_ASSOC));
         }
         break;
@@ -24,25 +24,35 @@ switch ($method) {
         $data = json_decode(file_get_contents('php://input'), true);
         if (!$data) sendError('Invalid JSON body');
 
+        $doc_type      = trim($data['doc_type']      ?? '');
+        $doc_no        = trim($data['doc_no']        ?? '');
+        $from_office   = trim($data['from_office']   ?? '');
+        $to_office     = trim($data['to_office']     ?? '');
+        $direction     = trim($data['direction']     ?? 'incoming'); // incoming | outgoing
+        $date_forwarded = ($data['date_forwarded'] ?? '') ?: null;
+        $date_received  = ($data['date_received']  ?? '') ?: null;
+        $received_by   = trim($data['received_by']  ?? '');
+        $status        = trim($data['status']        ?? 'Pending');
+        $remarks       = trim($data['remarks']       ?? '');
+
+        if (!$doc_type || !$doc_no) sendError('Document type and number are required');
+
+        // Add direction column if it doesn't exist yet (safe migration)
+        $conn->query("ALTER TABLE document_tracking ADD COLUMN IF NOT EXISTS `direction` ENUM('incoming','outgoing') NOT NULL DEFAULT 'incoming'");
+
         $stmt = $conn->prepare(
             'INSERT INTO document_tracking
-             (doc_type, doc_no, from_office, to_office, date_forwarded,
-              date_received, received_by, status, remarks)
-             VALUES (?,?,?,?,?,?,?,?,?)'
+             (doc_type, doc_no, from_office, to_office, direction,
+              date_forwarded, date_received, received_by, status, remarks)
+             VALUES (?,?,?,?,?,?,?,?,?,?)'
         );
         $stmt->bind_param(
-            'sssssssss',
-            $data['doc_type'],
-            $data['doc_no'],
-            $data['from_office'],
-            $data['to_office'],
-            $data['date_forwarded'],
-            $data['date_received'],
-            $data['received_by'],
-            $data['status'],
-            $data['remarks']
+            'ssssssssss',
+            $doc_type, $doc_no, $from_office, $to_office, $direction,
+            $date_forwarded, $date_received, $received_by, $status, $remarks
         );
-        $stmt->execute();
+
+        if (!$stmt->execute()) sendError('Insert failed: ' . $stmt->error, 500);
         sendJson(['id' => $conn->insert_id, 'message' => 'Tracking record created'], 201);
         break;
 
@@ -51,32 +61,41 @@ switch ($method) {
         $data = json_decode(file_get_contents('php://input'), true);
         if (!$id || !$data) sendError('Invalid request');
 
+        $doc_type      = trim($data['doc_type']      ?? '');
+        $doc_no        = trim($data['doc_no']        ?? '');
+        $from_office   = trim($data['from_office']   ?? '');
+        $to_office     = trim($data['to_office']     ?? '');
+        $direction     = trim($data['direction']     ?? 'incoming');
+        $date_forwarded = ($data['date_forwarded'] ?? '') ?: null;
+        $date_received  = ($data['date_received']  ?? '') ?: null;
+        $received_by   = trim($data['received_by']  ?? '');
+        $status        = trim($data['status']        ?? 'Pending');
+        $remarks       = trim($data['remarks']       ?? '');
+
+        // Add direction column if it doesn't exist yet (safe migration)
+        $conn->query("ALTER TABLE document_tracking ADD COLUMN IF NOT EXISTS `direction` ENUM('incoming','outgoing') NOT NULL DEFAULT 'incoming'");
+
         $stmt = $conn->prepare(
             'UPDATE document_tracking SET
-             doc_type=?, doc_no=?, from_office=?, to_office=?, date_forwarded=?,
-             date_received=?, received_by=?, status=?, remarks=?
+             doc_type=?, doc_no=?, from_office=?, to_office=?, direction=?,
+             date_forwarded=?, date_received=?, received_by=?, status=?, remarks=?
              WHERE id=?'
         );
         $stmt->bind_param(
-            'sssssssss i',
-            $data['doc_type'],
-            $data['doc_no'],
-            $data['from_office'],
-            $data['to_office'],
-            $data['date_forwarded'],
-            $data['date_received'],
-            $data['received_by'],
-            $data['status'],
-            $data['remarks'],
+            'ssssssssssi',
+            $doc_type, $doc_no, $from_office, $to_office, $direction,
+            $date_forwarded, $date_received, $received_by, $status, $remarks,
             $id
         );
-        $stmt->execute();
+
+        if (!$stmt->execute()) sendError('Update failed: ' . $stmt->error, 500);
         sendJson(['message' => 'Tracking record updated']);
         break;
 
     case 'DELETE':
         $id = (int) ($_GET['id'] ?? 0);
         if (!$id) sendError('ID required');
+
         $stmt = $conn->prepare('DELETE FROM document_tracking WHERE id = ?');
         $stmt->bind_param('i', $id);
         $stmt->execute();
