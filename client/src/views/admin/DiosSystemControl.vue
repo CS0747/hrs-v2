@@ -210,8 +210,6 @@ const moduleActions = {
   'Signatories':         ['View', 'Add', 'Edit', 'Delete'],
   'Audit History':       ['View', 'Export'],
   'Account Management':  ['View', 'Add', 'Edit', 'Delete'],
-  'DIOS Account':        ['View', 'Add', 'Edit', 'Delete'],
-  'DIOS System Control': ['View', 'Query', 'Browse'],
   'Version History':     ['View', 'Export'],
   'User Manual':         ['View'],
   'Birthday Celebrants': ['View', 'Export'],
@@ -701,7 +699,7 @@ onMounted(() => {
 .dsc-tabs {
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 10;
   flex-shrink: 0;
   background: linear-gradient(135deg, #0f1c2e 0%, #1a2f4a 60%, #1e3a5f 100%);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
@@ -853,7 +851,7 @@ onMounted(() => {
 .dsc-perm-header {
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 8;
   background: #f8f9fc;
   border-bottom: 1px solid #e8ecf4;
   padding: 14px 24px;
@@ -881,7 +879,7 @@ onMounted(() => {
 .dsc-perm-roles {
   position: sticky;
   top: 0;
-  z-index: 9;
+  z-index: 7;
   display: grid;
   grid-template-columns: 140px repeat(4, 1fr);
   gap: 8px;

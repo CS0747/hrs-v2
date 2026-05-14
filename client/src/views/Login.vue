@@ -17,8 +17,7 @@ async function handleLogin() {
     return
   }
   loading.value = true
-  await new Promise(r => setTimeout(r, 600)) // simulate brief delay
-  const ok = auth.login(username.value, password.value)
+  const ok = await auth.login(username.value, password.value)
   loading.value = false
   if (ok) router.push('/')
 }

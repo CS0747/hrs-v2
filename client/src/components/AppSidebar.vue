@@ -39,76 +39,94 @@ const icons = {
   department: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z"/></svg>`,
 }
 
-const allMenuGroups = computed(() => [
-  {
-    label: 'HR Management',
-    iconKey: 'hrgroup',
-    items: [
-      { label: 'Employee Masterlist', iconKey: 'employees',  to: '/employees' },
-      { label: 'Birthday Celebrants', iconKey: 'birthday',   to: '/employees/birthdays' },
-      { label: 'Schedule Database',   iconKey: 'schedule',   to: '/schedule' },
-      { label: 'Trainings',           iconKey: 'trainings',  to: '/trainings' },
-      { label: 'Departments',         iconKey: 'department', to: '/departments' },
-    ],
-  },
-  {
-    label: 'Leave & T.O.',
-    iconKey: 'leavegroup',
-    items: [
-      { label: 'Leave Management',    iconKey: 'leave', to: '/leave' },
-      { label: 'Travel Order (T.O.)', iconKey: 'to',    to: '/to' },
-    ],
-  },
-  {
-    label: 'DTR & Transmittal',
-    iconKey: 'dtrgroup',
-    items: [
-      { label: 'DTR Transmittal',       iconKey: 'dtr',   to: '/dtr' },
-      { label: 'Transmittal Summary',   iconKey: 'audit', to: '/audit' },
-    ],
-  },
-  {
-    label: 'Workflow',
-    iconKey: 'workflow',
-    items: [
-      { label: 'Verification',         iconKey: 'verification', to: '/verification' },
-      { label: 'Tracking & Receiving', iconKey: 'tracking',     to: '/tracking' },
-      { label: 'Signatories',          iconKey: 'signatories',  to: '/signatories' },
-    ],
-  },
-  {
-    label: 'Tools',
-    iconKey: 'tools',
-    items: [
-      { label: 'AI Scanning Tools', iconKey: 'ai', to: '/ai-scanning' },
-    ],
-  },
-  ...(auth.isSuperAdmin ? [{
-    label: 'Administration',
-    iconKey: 'admin',
-    items: [
-      { label: 'Version History',    iconKey: 'versionhist', to: '/version-history' },
-      { label: 'User Manual',        iconKey: 'usermanual',  to: '/user-manual' },
-    ],
-  }] : auth.isAdminOrAbove && !auth.isSuperAdmin ? [{
-    label: 'Administration',
-    iconKey: 'admin',
-    items: [
-      { label: 'Version History',    iconKey: 'versionhist', to: '/version-history' },
-      { label: 'User Manual',        iconKey: 'usermanual',  to: '/user-manual' },
-    ],
-  }] : auth.userRole === 'DIOS' ? [{
-    label: 'Administration',
-    iconKey: 'admin',
-    items: [
-      { label: 'Account Management', iconKey: 'accounts',    to: '/accounts' },
-      { label: 'Audit History',      iconKey: 'audittrail',  to: '/audit-trail' },
-      { label: 'Version History',    iconKey: 'versionhist', to: '/version-history' },
-      { label: 'System Control',     iconKey: 'dios',        to: '/dios-control' },
-      { label: 'User Manual',        iconKey: 'usermanual',  to: '/user-manual' },
-    ],
-  }] : []),
-])
+const allMenuGroups = computed(() => {
+  const role = auth.userRole
+
+  // Section Admin: only HR Management (no Departments) + User Manual
+  if (role === 'Section Admin') {
+    return [
+      {
+        label: 'HR Management',
+        iconKey: 'hrgroup',
+        items: [
+          { label: 'Schedule Database', iconKey: 'schedule', to: '/schedule' },
+        ],
+      },
+      {
+        label: 'Administration',
+        iconKey: 'admin',
+        items: [
+          { label: 'User Manual', iconKey: 'usermanual', to: '/user-manual' },
+        ],
+      },
+    ]
+  }
+
+  // All other roles — full menu filtered by role
+  return [
+    {
+      label: 'HR Management',
+      iconKey: 'hrgroup',
+      items: [
+        { label: 'Employee Masterlist', iconKey: 'employees',  to: '/employees' },
+        { label: 'Birthday Celebrants', iconKey: 'birthday',   to: '/employees/birthdays' },
+        { label: 'Schedule Database',   iconKey: 'schedule',   to: '/schedule' },
+        { label: 'Trainings',           iconKey: 'trainings',  to: '/trainings' },
+        { label: 'Departments',         iconKey: 'department', to: '/departments' },
+      ],
+    },
+    {
+      label: 'Leave & T.O.',
+      iconKey: 'leavegroup',
+      items: [
+        { label: 'Leave Management',    iconKey: 'leave', to: '/leave' },
+        { label: 'Travel Order (T.O.)', iconKey: 'to',    to: '/to' },
+      ],
+    },
+    {
+      label: 'DTR & Transmittal',
+      iconKey: 'dtrgroup',
+      items: [
+        { label: 'DTR Transmittal',     iconKey: 'dtr',   to: '/dtr' },
+        { label: 'Transmittal Summary', iconKey: 'audit', to: '/audit' },
+      ],
+    },
+    {
+      label: 'Workflow',
+      iconKey: 'workflow',
+      items: [
+        { label: 'Verification',         iconKey: 'verification', to: '/verification' },
+        { label: 'Tracking & Receiving', iconKey: 'tracking',     to: '/tracking' },
+        { label: 'Signatories',          iconKey: 'signatories',  to: '/signatories' },
+      ],
+    },
+    {
+      label: 'Tools',
+      iconKey: 'tools',
+      items: [
+        { label: 'AI Scanning Tools', iconKey: 'ai', to: '/ai-scanning' },
+      ],
+    },
+    ...(role === 'DIOS' ? [{
+      label: 'Administration',
+      iconKey: 'admin',
+      items: [
+        { label: 'Account Management', iconKey: 'accounts',    to: '/accounts' },
+        { label: 'Audit History',      iconKey: 'audittrail',  to: '/audit-trail' },
+        { label: 'Version History',    iconKey: 'versionhist', to: '/version-history' },
+        { label: 'System Control',     iconKey: 'dios',        to: '/dios-control' },
+        { label: 'User Manual',        iconKey: 'usermanual',  to: '/user-manual' },
+      ],
+    }] : [{
+      label: 'Administration',
+      iconKey: 'admin',
+      items: [
+        { label: 'Version History', iconKey: 'versionhist', to: '/version-history' },
+        { label: 'User Manual',     iconKey: 'usermanual',  to: '/user-manual' },
+      ],
+    }]),
+  ]
+})
 
 const menuGroups = allMenuGroups
 

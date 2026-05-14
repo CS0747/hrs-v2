@@ -1,14 +1,18 @@
 <script setup>
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import { useEmployeeStore } from '@/stores/employees'
 import { useLeaveStore } from '@/stores/leave'
 import { useDTRStore } from '@/stores/dtr'
 
 const router = useRouter()
+const auth = useAuthStore()
 const empStore = useEmployeeStore()
 const leaveStore = useLeaveStore()
 const dtrStore = useDTRStore()
+
+const isSectionAdmin = computed(() => auth.userRole === 'Section Admin')
 
 const svgIcons = {
   employees: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>`,
@@ -24,15 +28,21 @@ const svgIcons = {
   next:      `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>`,
 }
 
-const stats = computed(() => [
-  { label: 'Total Employees',    value: empStore.employees.filter(e => e.active).length, iconKey: 'employees', color: '#1a3a5c', bg: '#e8f0fe', to: '/employees' },
-  { label: 'Birthday Celebrants',value: empStore.birthdayCelebrantsThisMonth.length,     iconKey: 'birthday',  color: '#c0392b', bg: '#fdecea', to: '/employees/birthdays', sub: 'This Month' },
-  { label: 'Pending Leaves',     value: leaveStore.leaveRecords.filter(l => l.status === 'Pending').length, iconKey: 'leave', color: '#e67e22', bg: '#fef3e2', to: '/leave' },
-  { label: 'DTR Pending',        value: dtrStore.dtrRecords.filter(d => d.status === 'Pending').length,     iconKey: 'dtr',   color: '#8e44ad', bg: '#f5eef8', to: '/dtr' },
+const allStats = computed(() => [
+  { label: 'Total Employees',     value: empStore.employees.filter(e => e.active).length, iconKey: 'employees', color: '#1a3a5c', bg: '#e8f0fe', to: '/employees' },
+  { label: 'Birthday Celebrants', value: empStore.birthdayCelebrantsThisMonth.length,     iconKey: 'birthday',  color: '#c0392b', bg: '#fdecea', to: '/employees/birthdays', sub: 'This Month' },
+  { label: 'Pending Leaves',      value: leaveStore.leaveRecords.filter(l => l.status === 'Pending').length, iconKey: 'leave', color: '#e67e22', bg: '#fef3e2', to: '/leave' },
+  { label: 'DTR Pending',         value: dtrStore.dtrRecords.filter(d => d.status === 'Pending').length,     iconKey: 'dtr',   color: '#8e44ad', bg: '#f5eef8', to: '/dtr' },
   { label: 'Turning 65 This Year',value: empStore.turning65ThisYear.length, iconKey: 'employees', color: '#2980b9', bg: '#ebf5fb', to: '/employees/birthdays' },
 ])
 
-const quickLinks = [
+const stats = computed(() =>
+  isSectionAdmin.value
+    ? allStats.value.filter(s => !['Pending Leaves', 'DTR Pending'].includes(s.label))
+    : allStats.value
+)
+
+const allQuickLinks = [
   { label: 'Add Employee',    iconKey: 'employees', to: '/employees/new', color: '#1a3a5c' },
   { label: 'DTR Transmittal', iconKey: 'dtr',       to: '/dtr',           color: '#8e44ad' },
   { label: 'Leave Request',   iconKey: 'leave',     to: '/leave',         color: '#e67e22' },
@@ -40,6 +50,12 @@ const quickLinks = [
   { label: 'Schedule',        iconKey: 'calendar',  to: '/schedule',      color: '#c0392b' },
   { label: 'Trainings',       iconKey: 'trainings', to: '/trainings',     color: '#1a6b3c' },
 ]
+
+const quickLinks = computed(() =>
+  isSectionAdmin.value
+    ? allQuickLinks.filter(l => ['Schedule'].includes(l.label))
+    : allQuickLinks
+)
 
 // ── Birthday ticker for stat card ─────────────────────────────────────────────
 const bdayTickerNames = computed(() =>

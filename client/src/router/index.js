@@ -71,12 +71,11 @@ router.beforeEach((to, _from, next) => {
     return next(auth.isLoggedIn ? '/' : '/login')
   }
 
-  // Section Admin cannot access write-only routes directly
+  // Section Admin: only allowed routes
   if (auth.isLoggedIn && auth.isSectionAdmin) {
-    const writeOnlyRoutes = ['/employees/new', '/departments']
-    if (writeOnlyRoutes.includes(to.path) || /^\/employees\/\d+\/edit$/.test(to.path)) {
-      return next('/employees')
-    }
+    const allowed = ['/', '/schedule', '/user-manual']
+    const isAllowed = allowed.includes(to.path)
+    if (!isAllowed) return next('/')
   }
 
   // Admin or DIOS only routes — allow Super Admin, Admin, and DIOS roles

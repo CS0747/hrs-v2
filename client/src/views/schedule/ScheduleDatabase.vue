@@ -44,6 +44,7 @@ function blankForm() {
     effectiveDate: '',
     endDate:       '',
     restDay:       ALL_DAYS.filter(d => !defaultDays.includes(d)).join(', '),
+    selectedDates: [],
   }
 }
 
@@ -227,6 +228,301 @@ function shiftColor(shift) {
   }
   return map[shift] || 'badge-gray'
 }
+
+// ── Calendar ──────────────────────────────────────────────────────────────────
+const calendarAnchor = ref(new Date()) // any date in the current week
+
+// Day-name → index (Mon=0 … Sun=6)
+const DAY_INDEX = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 }
+
+// Shift colour palette for calendar blocks
+const SHIFT_BLOCK_STYLE = {
+  Morning:   { bg: '#e8f5e9', border: '#66bb6a', text: '#2e7d32' },
+  Afternoon: { bg: '#fff3e0', border: '#ffa726', text: '#e65100' },
+  Night:     { bg: '#e3f2fd', border: '#42a5f5', text: '#0d47a1' },
+  Split:     { bg: '#f3e5f5', border: '#ab47bc', text: '#6a1b9a' },
+  Flexible:  { bg: '#f5f5f5', border: '#bdbdbd', text: '#424242' },
+}
+
+// Shift dot colours for the legend
+const SHIFT_DOT_COLOR = {
+  Morning: '#f9a825', Afternoon: '#ef6c00', Night: '#1565c0',
+  Split: '#7b1fa2', Flexible: '#757575',
+}
+
+// Grid starts at 07:00; each hour = 60px
+const GRID_START_HOUR = 7
+const HOUR_PX = 60
+
+// Shift time → { startH, endH } in 24-h
+const SHIFT_HOURS = {
+  Morning:   { startH: 7,  endH: 15 },
+  Afternoon: { startH: 15, endH: 23 },
+  Night:     { startH: 23, endH: 31 }, // 31 = 07:00 next day (clamped to grid end)
+  Split:     { startH: 6,  endH: 18 },
+  Flexible:  { startH: 8,  endH: 12 },
+}
+
+// Hours shown in the time gutter: 07:00 – 22:00
+const TIME_ROWS = Array.from({ length: 16 }, (_, i) => {
+  const h = GRID_START_HOUR + i
+  const hh = h % 24
+  const ampm = hh < 12 ? 'AM' : 'PM'
+  const disp = hh === 0 ? 12 : hh > 12 ? hh - 12 : hh
+  return { label: `${String(disp).padStart(2, '0')}:00 ${ampm}`, hour: h }
+})
+
+// Monday of the week that contains `calendarAnchor`
+const weekStart = computed(() => {
+  const d = new Date(calendarAnchor.value)
+  const dow = d.getDay() // 0=Sun
+  const diff = dow === 0 ? -6 : 1 - dow // shift to Monday
+  d.setDate(d.getDate() + diff)
+  d.setHours(0, 0, 0, 0)
+  return d
+})
+
+// Array of 7 Date objects for Mon–Sun of the current week
+const weekDays = computed(() => {
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart.value)
+    d.setDate(d.getDate() + i)
+    return d
+  })
+})
+
+// Header label e.g. "May 12 – 18, 2026"
+const weekLabel = computed(() => {
+  const days = weekDays.value
+  const opts = { month: 'short', day: 'numeric' }
+  const start = days[0].toLocaleDateString('en-US', opts)
+  const endDay = days[6].getDate()
+  const year = days[6].getFullYear()
+  return `${start} – ${endDay}, ${year}`
+})
+
+function prevWeek() {
+  const d = new Date(calendarAnchor.value)
+  d.setDate(d.getDate() - 7)
+  calendarAnchor.value = d
+}
+function nextWeek() {
+  const d = new Date(calendarAnchor.value)
+  d.setDate(d.getDate() + 7)
+  calendarAnchor.value = d
+}
+
+function isToday(date) {
+  const t = new Date()
+  return date.getFullYear() === t.getFullYear() &&
+         date.getMonth()    === t.getMonth()    &&
+         date.getDate()     === t.getDate()
+}
+
+// Navigate mini-calendar click to the week containing that date
+function miniCalClick(date) {
+  calendarAnchor.value = new Date(date)
+}
+
+// ── Mini-month calendar ───────────────────────────────────────────────────────
+const miniMonth = computed(() => {
+  const anchor = calendarAnchor.value
+  const year  = anchor.getFullYear()
+  const month = anchor.getMonth()
+  const firstDay = new Date(year, month, 1)
+  const lastDay  = new Date(year, month + 1, 0)
+
+  // Pad to Monday-start grid
+  let startDow = firstDay.getDay() // 0=Sun
+  startDow = startDow === 0 ? 6 : startDow - 1 // Mon=0
+
+  const cells = []
+  // Leading empty cells
+  for (let i = 0; i < startDow; i++) cells.push(null)
+  // Day cells
+  for (let d = 1; d <= lastDay.getDate(); d++) {
+    cells.push(new Date(year, month, d))
+  }
+  // Trailing empty cells to complete last row
+  while (cells.length % 7 !== 0) cells.push(null)
+
+  const monthName = firstDay.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  return { cells, monthName, year, month }
+})
+
+function isMiniSelected(date) {
+  if (!date) return false
+  const ws = weekStart.value
+  const we = weekDays.value[6]
+  return date >= ws && date <= we
+}
+
+// ── Schedule blocks per column ────────────────────────────────────────────────
+// Returns schedules that are active in the current week and work on a given weekday index (0=Mon)
+function schedulesForColumn(colIndex) {
+  const colDate = weekDays.value[colIndex]
+  const dayName = ALL_DAYS[colIndex] // 'Mon','Tue',...
+
+  return store.schedules.filter(s => {
+    // Must include this weekday
+    if (!(s.days ?? []).includes(dayName)) return false
+
+    // Check effectiveDate / endDate window
+    if (s.effectiveDate) {
+      const eff = new Date(s.effectiveDate)
+      eff.setHours(0, 0, 0, 0)
+      if (colDate < eff) return false
+    }
+    if (s.endDate) {
+      const end = new Date(s.endDate)
+      end.setHours(23, 59, 59, 999)
+      if (colDate > end) return false
+    }
+    return true
+  })
+}
+
+// Compute top/height for a block in the time grid
+function blockStyle(s) {
+  const sh = SHIFT_HOURS[s.shift] || SHIFT_HOURS.Flexible
+  const palette = SHIFT_BLOCK_STYLE[s.shift] || SHIFT_BLOCK_STYLE.Flexible
+
+  const startOffset = Math.max(sh.startH - GRID_START_HOUR, 0)
+  const endClamped  = Math.min(sh.endH, GRID_START_HOUR + TIME_ROWS.length)
+  const duration    = Math.max(endClamped - sh.startH, 1)
+
+  return {
+    top:    `${startOffset * HOUR_PX}px`,
+    height: `${duration * HOUR_PX - 4}px`,
+    background: palette.bg,
+    borderLeft: `3px solid ${palette.border}`,
+    color: palette.text,
+  }
+}
+
+// ── Calendar view mode: week | month ─────────────────────────────────────────
+const calView = ref('week') // 'week' | 'month'
+
+// Month view — all days in the current month
+const monthDays = computed(() => {
+  const anchor = calendarAnchor.value
+  const year   = anchor.getFullYear()
+  const month  = anchor.getMonth()
+  const first  = new Date(year, month, 1)
+  const last   = new Date(year, month + 1, 0)
+
+  // Pad to Monday-start
+  let startDow = first.getDay()
+  startDow = startDow === 0 ? 6 : startDow - 1
+
+  const cells = []
+  for (let i = 0; i < startDow; i++) cells.push(null)
+  for (let d = 1; d <= last.getDate(); d++) cells.push(new Date(year, month, d))
+  while (cells.length % 7 !== 0) cells.push(null)
+  return cells
+})
+
+const monthLabel = computed(() => {
+  const anchor = calendarAnchor.value
+  return anchor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+})
+
+function prevMonth() {
+  const d = new Date(calendarAnchor.value)
+  d.setDate(1)
+  d.setMonth(d.getMonth() - 1)
+  calendarAnchor.value = d
+}
+function nextMonth() {
+  const d = new Date(calendarAnchor.value)
+  d.setDate(1)
+  d.setMonth(d.getMonth() + 1)
+  calendarAnchor.value = d
+}
+
+// Schedules for a specific calendar date (month view)
+function schedulesForDate(date) {
+  if (!date) return []
+  const dayName = ALL_DAYS[date.getDay() === 0 ? 6 : date.getDay() - 1]
+  return store.schedules.filter(s => {
+    if (!(s.days ?? []).includes(dayName)) return false
+    if (s.effectiveDate) {
+      const eff = new Date(s.effectiveDate); eff.setHours(0,0,0,0)
+      if (date < eff) return false
+    }
+    if (s.endDate) {
+      const end = new Date(s.endDate); end.setHours(23,59,59,999)
+      if (date > end) return false
+    }
+    return true
+  })
+}
+
+// Navigate prev/next depending on current view
+function prevPeriod() { calView.value === 'week' ? prevWeek() : prevMonth() }
+function nextPeriod() { calView.value === 'week' ? nextWeek() : nextMonth() }
+
+const periodLabel = computed(() => calView.value === 'week' ? weekLabel.value : monthLabel.value)
+
+// ── Form month calendar (specific date selection) ─────────────────────────────
+const formCalMonth = ref(new Date())
+
+const formCalGrid = computed(() => {
+  const year  = formCalMonth.value.getFullYear()
+  const month = formCalMonth.value.getMonth()
+  const first = new Date(year, month, 1)
+  const last  = new Date(year, month + 1, 0)
+  let startDow = first.getDay()
+  startDow = startDow === 0 ? 6 : startDow - 1
+  const cells = []
+  for (let i = 0; i < startDow; i++) cells.push(null)
+  for (let d = 1; d <= last.getDate(); d++) cells.push(new Date(year, month, d))
+  while (cells.length % 7 !== 0) cells.push(null)
+  return cells
+})
+
+const formCalLabel = computed(() =>
+  formCalMonth.value.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+)
+
+function formCalPrev() {
+  const d = new Date(formCalMonth.value)
+  d.setDate(1); d.setMonth(d.getMonth() - 1)
+  formCalMonth.value = d
+}
+function formCalNext() {
+  const d = new Date(formCalMonth.value)
+  d.setDate(1); d.setMonth(d.getMonth() + 1)
+  formCalMonth.value = d
+}
+
+function toDateKey(date) { return date.toISOString().split('T')[0] }
+
+function isDateSelected(date) {
+  return (form.value.selectedDates ?? []).includes(toDateKey(date))
+}
+
+function toggleFormDate(date) {
+  if (!date) return
+  const key = toDateKey(date)
+  if (!form.value.selectedDates) form.value.selectedDates = []
+  const idx = form.value.selectedDates.indexOf(key)
+  if (idx === -1) form.value.selectedDates.push(key)
+  else form.value.selectedDates.splice(idx, 1)
+}
+
+function clearFormDates() { form.value.selectedDates = [] }
+
+function selectAllMonth() {
+  const year  = formCalMonth.value.getFullYear()
+  const month = formCalMonth.value.getMonth()
+  const last  = new Date(year, month + 1, 0).getDate()
+  if (!form.value.selectedDates) form.value.selectedDates = []
+  for (let d = 1; d <= last; d++) {
+    const key = toDateKey(new Date(year, month, d))
+    if (!form.value.selectedDates.includes(key)) form.value.selectedDates.push(key)
+  }
+}
 </script>
 
 <template>
@@ -249,75 +545,153 @@ function shiftColor(shift) {
           :options="[{ label: 'All Shifts', value: '' }, ...store.shifts.map(s => ({ label: s, value: s }))]"
           placeholder="All Shifts"
         />
-        <AppSelect
-          v-model="filterApproval"
-          :options="[{ label: 'All Approval', value: '' }, { label: 'Pending', value: 'Pending' }, { label: 'Approved', value: 'Approved' }, { label: 'Rejected', value: 'Rejected' }]"
-          placeholder="All Approval"
-        />
       </div>
       <div class="toolbar-right">
-        <span class="record-count">{{ filtered.length }} schedule(s)</span>
         <button class="btn btn-primary" @click="openAdd">
           <span class="icon-svg" v-html="svgIcons.add"></span> Add Schedule
         </button>
       </div>
     </div>
 
-    <!-- ── Table ──────────────────────────────────────────────────────────── -->
-    <div class="table-wrapper">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Employee</th><th>Department</th><th>Shift</th>
-            <th>Shift Time</th><th>Days</th><th>Effective Date</th>
-            <th>End Date</th><th>Rest Day</th><th>Approval</th><th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="store.loading"><td colspan="9" class="empty-row">Loading...</td></tr>
-          <tr v-else-if="filtered.length === 0"><td colspan="9" class="empty-row">No schedules found.</td></tr>
-          <tr v-for="s in filtered" :key="s.id">
-            <td>
-              <strong>{{ s.employeeName }}</strong>
-              <div class="sub-text">{{ s.employeeNo }}</div>
-            </td>
-            <td>{{ s.department }}</td>
-            <td><span class="badge" :class="shiftColor(s.shift)">{{ s.shift }}</span></td>
-            <td class="shift-time">{{ s.shiftTime }}</td>
-            <td>
-              <div class="days-row">
-                <span v-for="d in ALL_DAYS" :key="d" class="day-chip" :class="{ active: (s.days ?? []).includes(d) }">
-                  {{ d }}
-                </span>
-              </div>
-            </td>
-            <td>{{ s.effectiveDate }}</td>
-            <td>{{ s.endDate }}</td>
-            <td class="rest-day">{{ s.restDay }}</td>
-            <td>
-              <div class="approval-cell">
-                <span class="badge" :class="approvalBadge(s)">{{ s.approvalStatus || 'Pending' }}</span>
-                <div v-if="!s.approvalStatus || s.approvalStatus === 'Pending'" class="approval-btns">
-                  <button class="btn-approve" @click="approveSchedule(s)" title="Approve">✓</button>
-                  <button class="btn-reject"  @click="rejectSchedule(s)"  title="Reject">✗</button>
+    <!-- ── Calendar View ─────────────────────────────────────────────────── -->
+    <div class="cal-layout">
+
+      <!-- LEFT PANEL -->
+      <div class="cal-left-panel">
+
+        <!-- Mini month calendar -->
+        <div class="mini-cal">
+          <div class="mini-cal-header">{{ miniMonth.monthName }}</div>
+          <div class="mini-cal-grid">
+            <div v-for="h in ['Mo','Tu','We','Th','Fr','Sa','Su']" :key="h" class="mini-cal-dow">{{ h }}</div>
+            <template v-for="(cell, idx) in miniMonth.cells" :key="idx">
+              <div
+                v-if="cell"
+                class="mini-cal-day"
+                :class="{
+                  'mini-today': isToday(cell),
+                  'mini-in-week': isMiniSelected(cell),
+                }"
+                @click="miniCalClick(cell)"
+              >{{ cell.getDate() }}</div>
+              <div v-else class="mini-cal-day empty"></div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Shift legend -->
+        <div class="cal-legend">
+          <div class="cal-legend-title">Schedules</div>
+          <div v-for="shift in ['Morning','Afternoon','Night','Split','Flexible']" :key="shift" class="cal-legend-item">
+            <span class="cal-legend-dot" :style="{ background: SHIFT_DOT_COLOR[shift] }"></span>
+            <span class="cal-legend-label">{{ shift }}</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT PANEL -->
+      <div class="cal-right-panel">
+
+        <!-- Week/Month header -->
+        <div class="cal-week-header">
+          <div class="cal-week-nav">
+            <button class="cal-nav-btn" @click="prevPeriod">&#8249;</button>
+            <span class="cal-week-label">{{ periodLabel }}</span>
+            <button class="cal-nav-btn" @click="nextPeriod">&#8250;</button>
+          </div>
+          <!-- Week / Month toggle -->
+          <div class="view-toggle">
+            <button class="view-pill" :class="{ active: calView === 'week' }" @click="calView = 'week'">Week</button>
+            <button class="view-pill" :class="{ active: calView === 'month' }" @click="calView = 'month'">Month</button>
+          </div>
+          <button class="btn btn-primary cal-add-btn" @click="openAdd">
+            <span class="icon-svg" v-html="svgIcons.add"></span> Add
+          </button>
+        </div>
+
+        <!-- ── WEEK VIEW ── -->
+        <template v-if="calView === 'week'">
+          <!-- Column headers (Mon–Sun) -->
+          <div class="cal-col-headers">
+            <div class="cal-time-gutter-head"></div>
+            <div
+              v-for="(day, i) in weekDays"
+              :key="i"
+              class="cal-col-head"
+              :class="{ 'cal-col-today': isToday(day) }"
+            >
+              <span class="cal-col-dow">{{ ALL_DAYS[i] }}</span>
+              <span class="cal-col-date">{{ day.getDate() }}</span>
+            </div>
+          </div>
+
+          <!-- Time grid -->
+          <div class="cal-grid-scroll">
+            <div class="cal-grid-body">
+              <!-- Time gutter -->
+              <div class="cal-time-gutter">
+                <div v-for="row in TIME_ROWS" :key="row.hour" class="cal-time-cell">
+                  {{ row.label }}
                 </div>
-                <div v-if="s.approvalStatus === 'Approved'" class="approved-by">by {{ s.approvedBy }}</div>
               </div>
-            </td>
-            <td>
-              <div class="action-btns">
-                <button class="btn-icon" @click="openEdit(s)" :disabled="!canEditSchedule(s)" :title="canEditSchedule(s) ? 'Edit' : 'Needs approval first'">
-                  <span class="icon-svg" v-html="svgIcons.edit"></span>
-                </button>
-                <button class="btn-icon danger" @click="promptDelete(s)">
-                  <span class="icon-svg" v-html="svgIcons.delete"></span>
-                </button>
+              <!-- Day columns -->
+              <div
+                v-for="(day, colIdx) in weekDays"
+                :key="colIdx"
+                class="cal-day-col"
+                :class="{ 'cal-day-today': isToday(day) }"
+              >
+                <div v-for="row in TIME_ROWS" :key="row.hour" class="cal-hour-line"></div>
+                <div
+                  v-for="s in schedulesForColumn(colIdx)"
+                  :key="s.id"
+                  class="cal-block"
+                  :style="blockStyle(s)"
+                  @click="openEdit(s)"
+                  :title="`${s.employeeName} · ${s.shiftTime}`"
+                >
+                  <span class="cal-block-name">{{ s.employeeName }}</span>
+                  <span class="cal-block-time">{{ s.shiftTime }}</span>
+                </div>
               </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- ── MONTH VIEW ── -->
+        <template v-else>
+          <!-- Day-of-week headers -->
+          <div class="cal-col-headers">
+            <div v-for="d in ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']" :key="d" class="cal-month-dow">{{ d }}</div>
+          </div>
+          <!-- Month grid -->
+          <div class="cal-month-grid">
+            <div
+              v-for="(cell, idx) in monthDays"
+              :key="idx"
+              class="cal-month-cell"
+              :class="{ 'cal-month-today': cell && isToday(cell), 'cal-month-empty': !cell }"
+            >
+              <span v-if="cell" class="cal-month-date">{{ cell.getDate() }}</span>
+              <div v-if="cell" class="cal-month-blocks">
+                <div
+                  v-for="s in schedulesForDate(cell)"
+                  :key="s.id"
+                  class="cal-month-block"
+                  :style="{ background: SHIFT_BLOCK_STYLE[s.shift]?.bg, borderLeft: `3px solid ${SHIFT_BLOCK_STYLE[s.shift]?.border}`, color: SHIFT_BLOCK_STYLE[s.shift]?.text }"
+                  @click="openEdit(s)"
+                  :title="`${s.employeeName} · ${s.shift}`"
+                >
+                  {{ s.employeeName }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+
+      </div><!-- end cal-right-panel -->
+    </div><!-- end cal-layout -->
 
     <!-- ── Add / Edit Modal ───────────────────────────────────────────────── -->
     <div v-if="showForm" class="modal-overlay" @click.self="showForm = false">
@@ -414,6 +788,43 @@ function shiftColor(shift) {
                   />
                   {{ d }}
                 </label>
+              </div>
+            </div>
+
+            <!-- Month calendar date picker -->
+            <div class="form-group full">
+              <div class="form-cal-header">
+                <label>Specific Dates <span class="days-count">(click dates to select — overrides day pattern)</span></label>
+                <div class="form-cal-actions">
+                  <button type="button" class="fcal-action-btn" @click="selectAllMonth">Select All Month</button>
+                  <button type="button" class="fcal-action-btn danger" @click="clearFormDates" :disabled="!(form.selectedDates ?? []).length">Clear</button>
+                </div>
+              </div>
+              <div class="form-cal">
+                <div class="form-cal-nav">
+                  <button type="button" class="cal-nav-btn" @click="formCalPrev">&#8249;</button>
+                  <span class="form-cal-month-label">{{ formCalLabel }}</span>
+                  <button type="button" class="cal-nav-btn" @click="formCalNext">&#8250;</button>
+                </div>
+                <div class="form-cal-grid">
+                  <div v-for="h in ['Mo','Tu','We','Th','Fr','Sa','Su']" :key="h" class="form-cal-dow">{{ h }}</div>
+                  <template v-for="(cell, idx) in formCalGrid" :key="idx">
+                    <div
+                      v-if="cell"
+                      class="form-cal-day"
+                      :class="{
+                        'fcal-selected': isDateSelected(cell),
+                        'fcal-today': isToday(cell),
+                        'fcal-weekend': cell.getDay() === 0 || cell.getDay() === 6,
+                      }"
+                      @click="toggleFormDate(cell)"
+                    >{{ cell.getDate() }}</div>
+                    <div v-else class="form-cal-day fcal-empty"></div>
+                  </template>
+                </div>
+                <div v-if="(form.selectedDates ?? []).length" class="fcal-selected-count">
+                  {{ form.selectedDates.length }} date(s) selected
+                </div>
               </div>
             </div>
 
@@ -688,4 +1099,138 @@ function shiftColor(shift) {
 .btn-confirm-ok:hover:not(:disabled) { background:#2980b9; }
 .btn-confirm-ok:disabled { background:#a0b4c8; cursor:not-allowed; }
 .btn-confirm-ok .icon-svg :deep(svg) { fill:#fff; }
+
+/* ── View toggle ── */
+.view-toggle { display:flex; border:1px solid #ddd; border-radius:8px; overflow:hidden; }
+.view-pill { padding:7px 16px; font-size:13px; font-weight:600; background:#fff; color:#888; border:none; cursor:pointer; transition:background 0.15s, color 0.15s; }
+.view-pill:first-child { border-right:1px solid #ddd; }
+.view-pill.active { background:#1a3a5c; color:#fff; }
+.view-pill:not(.active):hover { background:#f0f4f8; color:#1a3a5c; }
+
+/* ── Calendar layout ── */
+.cal-layout { display:flex; gap:16px; align-items:flex-start; min-height:600px; }
+
+/* Left panel */
+.cal-left-panel { width:220px; flex-shrink:0; display:flex; flex-direction:column; gap:16px; }
+
+/* Mini calendar */
+.mini-cal { background:#fff; border-radius:12px; box-shadow:0 2px 12px rgba(0,0,0,0.07); padding:14px; }
+.mini-cal-header { font-size:13px; font-weight:700; color:#1a3a5c; text-align:center; margin-bottom:10px; }
+.mini-cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+.mini-cal-dow { font-size:10px; font-weight:700; color:#aaa; text-align:center; padding:2px 0 4px; }
+.mini-cal-day { font-size:11px; text-align:center; padding:4px 2px; border-radius:50%; cursor:pointer; color:#444; transition:background 0.12s; aspect-ratio:1; display:flex; align-items:center; justify-content:center; }
+.mini-cal-day:hover:not(.empty) { background:#e8f0fe; color:#1a3a5c; }
+.mini-cal-day.empty { cursor:default; }
+.mini-cal-day.mini-today { background:#1a3a5c; color:#fff; font-weight:700; }
+.mini-cal-day.mini-in-week:not(.mini-today) { background:#f0c040; color:#1a3a5c; font-weight:700; }
+
+/* Legend */
+.cal-legend { background:#fff; border-radius:12px; box-shadow:0 2px 12px rgba(0,0,0,0.07); padding:14px; }
+.cal-legend-title { font-size:12px; font-weight:700; color:#1a3a5c; margin-bottom:10px; text-transform:uppercase; letter-spacing:0.5px; }
+.cal-legend-item { display:flex; align-items:center; gap:8px; padding:4px 0; }
+.cal-legend-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.cal-legend-label { font-size:12px; color:#555; }
+
+/* Right panel */
+.cal-right-panel { flex:1; background:#fff; border-radius:12px; box-shadow:0 2px 12px rgba(0,0,0,0.07); overflow:hidden; display:flex; flex-direction:column; }
+
+/* Week header */
+.cal-week-header { display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #f0f4f8; flex-wrap:wrap; }
+.cal-week-nav { display:flex; align-items:center; gap:8px; }
+.cal-nav-btn { background:none; border:1px solid #ddd; border-radius:6px; width:28px; height:28px; font-size:18px; line-height:1; cursor:pointer; color:#555; display:flex; align-items:center; justify-content:center; transition:background 0.15s; }
+.cal-nav-btn:hover { background:#f0f4f8; }
+.cal-week-label { font-size:14px; font-weight:700; color:#1a3a5c; white-space:nowrap; }
+.cal-week-tag { font-size:12px; font-weight:600; color:#888; background:#f0f4f8; padding:3px 10px; border-radius:12px; }
+.cal-add-btn { margin-left:auto; padding:7px 14px; font-size:12px; }
+
+/* Column headers */
+.cal-col-headers { display:flex; border-bottom:1px solid #f0f4f8; }
+.cal-time-gutter-head { width:72px; flex-shrink:0; }
+.cal-col-head { flex:1; text-align:center; padding:8px 4px; display:flex; flex-direction:column; align-items:center; gap:2px; border-left:1px solid #f0f4f8; }
+.cal-col-dow { font-size:11px; font-weight:600; color:#888; text-transform:uppercase; }
+.cal-col-date { font-size:16px; font-weight:700; color:#1a3a5c; width:30px; height:30px; display:flex; align-items:center; justify-content:center; border-radius:50%; }
+.cal-col-today .cal-col-dow { color:#fff; }
+.cal-col-today .cal-col-date { background:#1a3a5c; color:#fff; }
+
+/* Grid scroll area */
+.cal-grid-scroll { overflow-y:auto; max-height:calc(100vh - 280px); }
+.cal-grid-body { display:flex; position:relative; }
+
+/* Time gutter */
+.cal-time-gutter { width:72px; flex-shrink:0; }
+.cal-time-cell { height:60px; display:flex; align-items:flex-start; justify-content:flex-end; padding:4px 8px 0 0; font-size:10px; color:#aaa; white-space:nowrap; box-sizing:border-box; border-bottom:1px solid #f5f5f5; }
+
+/* Day columns */
+.cal-day-col { flex:1; position:relative; border-left:1px solid #f0f4f8; min-width:0; }
+.cal-day-today { background:#f8fbff; }
+.cal-hour-line { height:60px; border-bottom:1px solid #f5f5f5; box-sizing:border-box; }
+
+/* Schedule blocks */
+.cal-block {
+  position:absolute; left:3px; right:3px;
+  border-radius:6px; padding:4px 6px;
+  cursor:pointer; overflow:hidden;
+  display:flex; flex-direction:column; gap:1px;
+  transition:filter 0.15s, box-shadow 0.15s;
+  z-index:1;
+}
+.cal-block:hover { filter:brightness(0.95); box-shadow:0 2px 8px rgba(0,0,0,0.15); z-index:2; }
+.cal-block-name { font-size:11px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cal-block-time { font-size:10px; opacity:0.8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* ── Month view ── */
+.cal-month-dow { flex:1; text-align:center; font-size:11px; font-weight:700; color:#888; text-transform:uppercase; padding:8px 4px; border-left:1px solid #f0f4f8; }
+.cal-month-dow:first-child { border-left:none; }
+.cal-col-headers { display:flex; border-bottom:1px solid #f0f4f8; }
+.cal-month-grid { display:grid; grid-template-columns:repeat(7,1fr); flex:1; overflow-y:auto; }
+.cal-month-cell {
+  min-height:110px; border-right:1px solid #f0f4f8; border-bottom:1px solid #f0f4f8;
+  padding:6px; display:flex; flex-direction:column; gap:3px; background:#fff;
+}
+.cal-month-cell:nth-child(7n) { border-right:none; }
+.cal-month-empty { background:#fafbfc; }
+.cal-month-today { background:#f0f7ff; }
+.cal-month-today .cal-month-date {
+  background:#1a3a5c; color:#fff; border-radius:50%;
+  width:22px; height:22px; display:flex; align-items:center; justify-content:center;
+}
+.cal-month-date { font-size:12px; font-weight:700; color:#1a3a5c; margin-bottom:2px; }
+.cal-month-blocks { display:flex; flex-direction:column; gap:2px; overflow:hidden; }
+.cal-month-block {
+  font-size:10px; font-weight:600; padding:2px 5px; border-radius:4px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  cursor:pointer; transition:filter 0.12s;
+}
+.cal-month-block:hover { filter:brightness(0.92); }
+
+/* ── Form month calendar ── */
+.form-cal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; flex-wrap:wrap; gap:8px; }
+.form-cal-actions { display:flex; gap:6px; }
+.fcal-action-btn {
+  padding:4px 12px; border-radius:6px; border:1px solid #ddd;
+  background:#f0f4f8; color:#1a3a5c; font-size:11px; font-weight:600;
+  cursor:pointer; transition:background 0.15s;
+}
+.fcal-action-btn:hover:not(:disabled) { background:#e0e8f0; }
+.fcal-action-btn.danger { color:#c0392b; border-color:#f5b7b1; background:#fdecea; }
+.fcal-action-btn.danger:hover:not(:disabled) { background:#fad4d1; }
+.fcal-action-btn:disabled { opacity:0.4; cursor:not-allowed; }
+
+.form-cal { background:#f8f9fc; border:1px solid #e2e6ef; border-radius:10px; padding:12px; }
+.form-cal-nav { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.form-cal-month-label { font-size:13px; font-weight:700; color:#1a3a5c; }
+.form-cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+.form-cal-dow { font-size:10px; font-weight:700; color:#aaa; text-align:center; padding:3px 0 5px; }
+.form-cal-day {
+  aspect-ratio:1; display:flex; align-items:center; justify-content:center;
+  font-size:12px; font-weight:500; border-radius:6px; cursor:pointer;
+  color:#444; transition:background 0.12s, color 0.12s;
+  border:2px solid transparent;
+}
+.form-cal-day:hover:not(.fcal-empty) { background:#e8f0fe; color:#1a3a5c; }
+.fcal-empty { cursor:default; }
+.fcal-today { border-color:#1a3a5c; color:#1a3a5c; font-weight:700; }
+.fcal-weekend { color:#888; }
+.fcal-selected { background:#1a3a5c !important; color:#fff !important; border-color:#1a3a5c; font-weight:700; }
+.fcal-selected-count { margin-top:8px; font-size:11px; color:#1a6b3c; font-weight:600; text-align:center; }
 </style>
