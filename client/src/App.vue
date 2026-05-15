@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AppSidebar from './components/AppSidebar.vue'
 import AppHeader from './components/AppHeader.vue'
+import Notifications from './components/Notifications.vue'
 
 const route    = useRoute()
 const auth     = useAuthStore()
@@ -51,6 +52,9 @@ function toggleSidebar() {
         </Transition>
       </RouterView>
     </template>
+
+    <!-- Global Notifications -->
+    <Notifications />
   </div>
 </template>
 
