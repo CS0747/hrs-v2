@@ -1,24 +1,24 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
-const AUTH_API  = 'http://localhost/hrs-v2/server/api/auth.php'
+const AUTH_API = 'http://localhost/hrs-v2/server/api/auth.php'
 const AUDIT_API = 'http://localhost/hrs-v2/server/api/audit_logs.php'
 
 export const useAuthStore = defineStore('auth', () => {
 
   // ── Session ───────────────────────────────────────────────────────────────
   const currentUser = ref(JSON.parse(sessionStorage.getItem('hris_user') || 'null'))
-  const loginError  = ref('')
+  const loginError = ref('')
   const signupError = ref('')
   const loginLoading = ref(false)
 
-  const isLoggedIn     = computed(() => !!currentUser.value)
-  const userRole       = computed(() => currentUser.value?.role ?? '')
-  const isSuperAdmin   = computed(() => userRole.value === 'Super Admin')
+  const isLoggedIn = computed(() => !!currentUser.value)
+  const userRole = computed(() => currentUser.value?.role ?? '')
+  const isSuperAdmin = computed(() => userRole.value === 'Super Admin')
   const isAdminOrAbove = computed(() => ['Super Admin', 'Admin', 'DIOS'].includes(userRole.value))
   const isSectionAdmin = computed(() => userRole.value === 'Section Admin')
-  const isIT           = computed(() => userRole.value === 'IT')
-  const isFullAccess   = computed(() => ['Super Admin', 'Admin', 'IT', 'DIOS'].includes(userRole.value))
+  const isIT = computed(() => userRole.value === 'IT')
+  const isFullAccess = computed(() => ['Super Admin', 'Admin', 'IT', 'DIOS'].includes(userRole.value))
 
   function canEdit(section = '') {
     if (['Super Admin', 'Admin', 'IT', 'DIOS'].includes(userRole.value)) return true
@@ -31,7 +31,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function fetchUsers() {
     try {
-      const res  = await fetch(`${AUTH_API}?action=users`)
+      const res = await fetch(`${AUTH_API}?action=users`)
       const data = await res.json()
       if (Array.isArray(data.users)) {
         // Don't expose passwords — they're not returned by the API anyway
@@ -42,13 +42,13 @@ export const useAuthStore = defineStore('auth', () => {
 
   // ── Login (DB-backed) ─────────────────────────────────────────────────────
   async function login(username, password) {
-    loginError.value   = ''
+    loginError.value = ''
     loginLoading.value = true
     try {
-      const res  = await fetch(`${AUTH_API}?action=login`, {
-        method:  'POST',
+      const res = await fetch(`${AUTH_API}?action=login`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -83,14 +83,14 @@ export const useAuthStore = defineStore('auth', () => {
       return false
     }
     try {
-      const res  = await fetch(`${AUTH_API}?action=signup`, {
-        method:  'POST',
+      const res = await fetch(`${AUTH_API}?action=signup`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          username:   data.username,
-          password:   data.password,
-          name:       data.name,
-          role:       data.role       || 'Admin',
+        body: JSON.stringify({
+          username: data.username,
+          password: data.password,
+          name: data.name,
+          role: data.role || 'Admin',
           department: data.department || 'Human Resources',
         }),
       })
@@ -114,9 +114,9 @@ export const useAuthStore = defineStore('auth', () => {
     if (!id) return
     try {
       await fetch(`${AUTH_API}?action=update_profile&id=${id}`, {
-        method:  'PUT',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(data),
+        body: JSON.stringify(data),
       })
       currentUser.value = { ...currentUser.value, ...data }
       sessionStorage.setItem('hris_user', JSON.stringify(currentUser.value))
@@ -140,9 +140,9 @@ export const useAuthStore = defineStore('auth', () => {
   async function updateUser(id, data) {
     try {
       const res = await fetch(`${AUTH_API}?action=update_profile&id=${id}`, {
-        method:  'PUT',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(data),
+        body: JSON.stringify(data),
       })
       if (!res.ok) return false
       const idx = users.value.findIndex(u => u.id === id)
@@ -170,13 +170,13 @@ export const useAuthStore = defineStore('auth', () => {
 
   function requestProfileChange(data) {
     const req = {
-      id:          Date.now(),
-      userId:      currentUser.value?.id,
-      userName:    currentUser.value?.name,
-      userRole:    currentUser.value?.role,
+      id: Date.now(),
+      userId: currentUser.value?.id,
+      userName: currentUser.value?.name,
+      userRole: currentUser.value?.role,
       requestedAt: nowTimestamp(),
-      status:      'pending',
-      changes:     data,
+      status: 'pending',
+      changes: data,
     }
     profileRequests.value.unshift(req)
     saveRequests()
@@ -204,7 +204,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const pendingProfileRequests = computed(() => {
-    if (userRole.value === 'DIOS')        return profileRequests.value.filter(r => r.status === 'pending')
+    if (userRole.value === 'DIOS') return profileRequests.value.filter(r => r.status === 'pending')
     if (userRole.value === 'Super Admin') return profileRequests.value.filter(r => r.status === 'pending' && r.userRole === 'Admin')
     return []
   })
@@ -216,24 +216,39 @@ export const useAuthStore = defineStore('auth', () => {
   // ── Activity log + audit ──────────────────────────────────────────────────
   const activityLog = ref(JSON.parse(sessionStorage.getItem('hris_log') || '[]'))
 
+  // ── API Request Wrapper with X-User-Id Header ─────────────────────────────
+  function apiFetch(url, options = {}) {
+    const headers = options.headers || {}
+
+    // Add X-User-Id header if user is logged in
+    if (currentUser.value?.id) {
+      headers['X-User-Id'] = String(currentUser.value.id)
+    }
+
+    return fetch(url, {
+      ...options,
+      headers,
+    })
+  }
+
   function nowTimestamp() {
-    const d    = new Date()
-    const pad  = n => String(n).padStart(2, '0')
-    const mm   = pad(d.getMonth() + 1)
-    const dd   = pad(d.getDate())
+    const d = new Date()
+    const pad = n => String(n).padStart(2, '0')
+    const mm = pad(d.getMonth() + 1)
+    const dd = pad(d.getDate())
     const yyyy = d.getFullYear()
-    const hh   = pad(d.getHours() % 12 || 12)
-    const min  = pad(d.getMinutes())
-    const sec  = pad(d.getSeconds())
+    const hh = pad(d.getHours() % 12 || 12)
+    const min = pad(d.getMinutes())
+    const sec = pad(d.getSeconds())
     const ampm = d.getHours() < 12 ? 'AM' : 'PM'
     return `${mm}/${dd}/${yyyy}, ${hh}:${min}:${sec} ${ampm}`
   }
 
   function addLog(action, module, details, extra = {}) {
     const entry = {
-      id:        Date.now(),
+      id: Date.now(),
       timestamp: nowTimestamp(),
-      user:      currentUser.value?.name || 'System',
+      user: currentUser.value?.name || 'System',
       action, module, details,
       status: 'OK',
       ...extra,
@@ -243,22 +258,22 @@ export const useAuthStore = defineStore('auth', () => {
     sessionStorage.setItem('hris_log', JSON.stringify(activityLog.value))
 
     fetch(AUDIT_API, {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        user_id:        currentUser.value?.id   ?? null,
-        user_name:      currentUser.value?.name ?? 'System',
+        user_id: currentUser.value?.id ?? null,
+        user_name: currentUser.value?.name ?? 'System',
         action,
-        action_type:    extra.actionType  ?? 'OTHER',
+        action_type: extra.actionType ?? 'OTHER',
         module,
-        affected_table: extra.table       ?? null,
-        record_id:      extra.recordId    ?? null,
-        old_values:     extra.oldValues   ?? null,
-        new_values:     extra.newValues   ?? null,
+        affected_table: extra.table ?? null,
+        record_id: extra.recordId ?? null,
+        old_values: extra.oldValues ?? null,
+        new_values: extra.newValues ?? null,
         details,
-        status:         extra.status      ?? 'OK',
+        status: extra.status ?? 'OK',
       }),
-    }).catch(() => {})
+    }).catch(() => { })
   }
 
   // Load users on store init
@@ -269,7 +284,7 @@ export const useAuthStore = defineStore('auth', () => {
     activityLog, users, userRole,
     isSectionAdmin, isIT, isFullAccess, canEdit, isSuperAdmin, isAdminOrAbove,
     login, signup, logout, updateProfile, updateUser, deleteUser,
-    addLog, nowTimestamp, fetchUsers,
+    addLog, nowTimestamp, fetchUsers, apiFetch,
     profileRequests, pendingProfileRequests, myPendingRequest,
     requestProfileChange, approveProfileRequest, rejectProfileRequest,
   }

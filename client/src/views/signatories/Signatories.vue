@@ -1,12 +1,15 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useSignatoryStore } from '@/stores/signatories'
+import { usePermissions } from '@/composables/usePermissions'
 import AppModal from '@/components/AppModal.vue'
 
 const store = useSignatoryStore()
+const { hasPermission, loadPermissions } = usePermissions()
 
 // Fetch signatories on component mount
-onMounted(() => {
+onMounted(async () => {
+  await loadPermissions()
   store.fetchRecords()
 })
 
@@ -99,7 +102,7 @@ async function toggleActive(s) {
         </h3>
       </div>
       <div class="toolbar-right">
-        <button class="btn btn-primary" @click="openAdd">
+        <button v-if="hasPermission('Signatories', 'Add')" class="btn btn-primary" @click="openAdd">
           <span class="icon-svg" v-html="svgIcons.add"></span> Add Signatory
         </button>
       </div>
@@ -117,13 +120,13 @@ async function toggleActive(s) {
           <span class="sig-role-badge">{{ s.role }}</span>
         </div>
         <div class="sig-actions">
-          <button class="btn-icon" @click="openEdit(s)">
+          <button v-if="hasPermission('Signatories', 'Edit')" class="btn-icon" @click="openEdit(s)">
             <span class="icon-svg" v-html="svgIcons.edit"></span>
           </button>
-          <button class="btn-icon" @click="toggleActive(s)" :title="s.active ? 'Deactivate' : 'Activate'">
+          <button v-if="hasPermission('Signatories', 'Edit')" class="btn-icon" @click="toggleActive(s)" :title="s.active ? 'Deactivate' : 'Activate'">
             {{ s.active ? '🔴' : '🟢' }}
           </button>
-          <button class="btn-icon danger" @click="deleteRec(s.id)">
+          <button v-if="hasPermission('Signatories', 'Delete')" class="btn-icon danger" @click="deleteRec(s.id)">
             <span class="icon-svg" v-html="svgIcons.delete"></span>
           </button>
         </div>

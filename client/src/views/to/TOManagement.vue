@@ -2,13 +2,16 @@
 import { ref, computed, onMounted } from 'vue'
 import { useTravelOrderStore } from '@/stores/travel_orders'
 import { useEmployeeStore } from '@/stores/employees'
+import { usePermissions } from '@/composables/usePermissions'
 import AppModal from '@/components/AppModal.vue'
 
 const store = useTravelOrderStore()
 const empStore = useEmployeeStore()
+const { hasPermission, loadPermissions } = usePermissions()
 
 // Fetch travel orders on component mount
-onMounted(() => {
+onMounted(async () => {
+  await loadPermissions()
   store.fetchRecords()
   empStore.fetchDepartments()
   empStore.fetchEmployees()
@@ -216,7 +219,7 @@ function statusClass(s) {
       <div class="toolbar-right">
         <span class="record-count">{{ filtered.length }} record(s)</span>
         <button class="btn btn-print" @click="printRecords">🖨 Print</button>
-        <button class="btn btn-primary" @click="openAdd">
+        <button v-if="hasPermission('Travel Orders', 'Add')" class="btn btn-primary" @click="openAdd">
           <span class="icon-svg" v-html="svgIcons.add"></span> Add T.O.
         </button>
       </div>
@@ -245,10 +248,10 @@ function statusClass(s) {
             <td><span class="badge" :class="statusClass(r.status)">{{ r.status }}</span></td>
             <td>
               <div class="action-btns">
-                <button class="btn-icon" @click="openEdit(r)">
+                <button v-if="hasPermission('Travel Orders', 'Edit')" class="btn-icon" @click="openEdit(r)">
                   <span class="icon-svg" v-html="svgIcons.edit"></span>
                 </button>
-                <button class="btn-icon danger" @click="deleteRec(r.id)">
+                <button v-if="hasPermission('Travel Orders', 'Delete')" class="btn-icon danger" @click="deleteRec(r.id)">
                   <span class="icon-svg" v-html="svgIcons.delete"></span>
                 </button>
               </div>

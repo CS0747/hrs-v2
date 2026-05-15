@@ -3,11 +3,13 @@ import { ref, computed, onMounted } from 'vue'
 import { useDTRStore } from '@/stores/dtr'
 import { useAuthStore } from '@/stores/auth'
 import { useEmployeeStore } from '@/stores/employees'
+import { usePermissions } from '@/composables/usePermissions'
 import AppModal from '@/components/AppModal.vue'
 
 const store    = useDTRStore()
 const auth     = useAuthStore()
 const empStore = useEmployeeStore()
+const { hasPermission, loadPermissions } = usePermissions()
 
 const DTR_API = 'http://localhost/hrs-v2/server/api/dtr.php'
 
@@ -47,7 +49,10 @@ async function fetchHistory() {
   }
 }
 
-onMounted(fetchHistory)
+onMounted(async () => {
+  await loadPermissions()
+  fetchHistory()
+})
 
 const historySearch = ref('')
 const historyFilterStatus = ref('')
@@ -336,7 +341,7 @@ function downloadCSV(filename, headers, rows) {
           <button class="btn btn-download" @click="downloadRecordsCSV">
             <span class="icon-svg" v-html="svgIcons.download"></span> Download
           </button>
-          <button class="btn btn-blue" @click="openAdd">
+          <button v-if="hasPermission('DTR Transmittal', 'Add')" class="btn btn-blue" @click="openAdd">
             <span class="icon-svg" v-html="svgIcons.add"></span> Add DTR Record
           </button>
         </div>
@@ -390,10 +395,10 @@ function downloadCSV(filename, headers, rows) {
               </td>
               <td>
                 <div class="action-btns">
-                  <button class="btn-icon" @click="openEdit(r)">
+                  <button v-if="hasPermission('DTR Transmittal', 'Edit')" class="btn-icon" @click="openEdit(r)">
                     <span class="icon-svg" v-html="svgIcons.edit"></span>
                   </button>
-                  <button class="btn-icon danger" @click="deleteRec(r.id)">
+                  <button v-if="hasPermission('DTR Transmittal', 'Delete')" class="btn-icon danger" @click="deleteRec(r.id)">
                     <span class="icon-svg" v-html="svgIcons.delete"></span>
                   </button>
                 </div>

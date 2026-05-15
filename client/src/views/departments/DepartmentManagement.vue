@@ -1,9 +1,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useEmployeeStore } from '@/stores/employees'
+import { usePermissions } from '@/composables/usePermissions'
 
 const API      = 'http://localhost/hrs-v2/server/api/departments.php'
 const empStore = useEmployeeStore()
+const { hasPermission, loadPermissions } = usePermissions()
 
 // ── State ────────────────────────────────────────────────────────────────────
 const departments  = ref([])
@@ -45,7 +47,10 @@ async function fetchDepartments() {
   }
 }
 
-onMounted(fetchDepartments)
+onMounted(async () => {
+  await loadPermissions()
+  fetchDepartments()
+})
 
 // ── Filtered list ────────────────────────────────────────────────────────────
 const filtered = computed(() => {
@@ -178,7 +183,7 @@ async function toggleActive(dept) {
       </div>
       <div class="toolbar-right">
         <span class="record-count">{{ filtered.length }} department(s)</span>
-        <button class="btn btn-primary" @click="openAdd">
+        <button v-if="hasPermission('Departments', 'Add')" class="btn btn-primary" @click="openAdd">
           <span class="icon-svg" v-html="icons.add"></span> Add Department
         </button>
       </div>
@@ -232,10 +237,10 @@ async function toggleActive(dept) {
             </td>
             <td>
               <div class="action-btns">
-                <button class="btn-icon" title="Edit" @click="openEdit(dept)">
+                <button v-if="hasPermission('Departments', 'Edit')" class="btn-icon" title="Edit" @click="openEdit(dept)">
                   <span class="icon-svg" v-html="icons.edit"></span>
                 </button>
-                <button class="btn-icon danger" title="Deactivate" @click="promptDelete(dept)">
+                <button v-if="hasPermission('Departments', 'Delete')" class="btn-icon danger" title="Deactivate" @click="promptDelete(dept)">
                   <span class="icon-svg" v-html="icons.delete"></span>
                 </button>
               </div>

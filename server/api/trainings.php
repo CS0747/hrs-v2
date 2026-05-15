@@ -3,6 +3,21 @@ require_once 'db.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $conn   = getConnection();
+$userId = (int)($_SERVER['HTTP_X_USER_ID'] ?? 0);
+
+// Map HTTP methods to actions
+$actionMap = [
+    'GET'    => 'View',
+    'POST'   => 'Add',
+    'PUT'    => 'Edit',
+    'DELETE' => 'Delete',
+];
+$action = $actionMap[$method] ?? 'View';
+
+// Check permission before processing request
+if (!checkPermission($conn, $userId, 'Trainings', $action)) {
+    denyAccess('Trainings', $action);
+}
 
 // ── Route: /trainings.php?participants=1&training_id=X ──────────────────────
 // Handles participant sub-resource separately

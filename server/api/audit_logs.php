@@ -3,6 +3,21 @@ require_once 'db.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $conn   = getConnection();
+$userId = (int)($_SERVER['HTTP_X_USER_ID'] ?? 0);
+
+// Map HTTP methods to actions
+$actionMap = [
+    'GET'    => 'View',
+    'POST'   => 'Add',
+    'PUT'    => 'Edit',
+    'DELETE' => 'Delete',
+];
+$action = $actionMap[$method] ?? 'View';
+
+// Check permission before processing request
+if (!checkPermission($conn, $userId, 'Audit History', $action)) {
+    denyAccess('Audit History', $action);
+}
 
 switch ($method) {
 

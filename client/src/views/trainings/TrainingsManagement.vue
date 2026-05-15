@@ -1,8 +1,10 @@
 ﻿<script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useEmployeeStore } from '@/stores/employees'
+import { usePermissions } from '@/composables/usePermissions'
 
 const empStore = useEmployeeStore()
+const { hasPermission, loadPermissions } = usePermissions()
 const API = 'http://localhost/hrs-v2/server/api/trainings.php'
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -80,7 +82,10 @@ async function fetchTrainings() {
   finally { loading.value = false }
 }
 
-onMounted(fetchTrainings)
+onMounted(async () => {
+  await loadPermissions()
+  fetchTrainings()
+})
 
 // ── Filtered cards ────────────────────────────────────────────────────────────
 const filtered = computed(() => trainings.value.filter(t => {
@@ -263,7 +268,7 @@ function onEmpBlur() { setTimeout(() => { empDropOpen.value = false }, 180) }
       </div>
       <div class="toolbar-right">
         <span class="record-count">{{ filtered.length }} training(s)</span>
-        <button class="btn btn-primary" @click="openAdd">
+        <button v-if="hasPermission('Trainings', 'Add')" class="btn btn-primary" @click="openAdd">
           <span class="icon-svg" v-html="icons.add"></span> Add Training
         </button>
       </div>
@@ -313,10 +318,10 @@ function onEmpBlur() { setTimeout(() => { empDropOpen.value = false }, 180) }
               </div>
             </div>
             <div class="card-actions" @click.stop>
-              <button class="btn-icon" title="Edit" @click="openEdit(t)">
+              <button v-if="hasPermission('Trainings', 'Edit')" class="btn-icon" title="Edit" @click="openEdit(t)">
                 <span class="icon-svg" v-html="icons.edit"></span>
               </button>
-              <button class="btn-icon danger" title="Delete" @click="deleteTraining(t)">
+              <button v-if="hasPermission('Trainings', 'Delete')" class="btn-icon danger" title="Delete" @click="deleteTraining(t)">
                 <span class="icon-svg" v-html="icons.delete"></span>
               </button>
             </div>

@@ -3,6 +3,12 @@ require_once 'db.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $conn   = getConnection();
+$userId = (int)($_SERVER['HTTP_X_USER_ID'] ?? 0);
+
+// Check permission before processing request (Birthday Celebrants is View-only)
+if (!checkPermission($conn, $userId, 'Birthday Celebrants', 'View')) {
+    denyAccess('Birthday Celebrants', 'View');
+}
 
 if ($method !== 'GET') {
     sendError('Method not allowed', 405);

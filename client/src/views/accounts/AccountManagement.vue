@@ -2,11 +2,14 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { usePermissions } from '@/composables/usePermissions'
 
 const auth   = useAuthStore()
 const router = useRouter()
+const { hasPermission, loadPermissions } = usePermissions()
 
-onMounted(() => {
+onMounted(async () => {
+  await loadPermissions()
   // Allow Super Admin, Admin, and DIOS to access Account Management
   const allowed = ['Super Admin', 'Admin', 'DIOS']
   if (!allowed.includes(auth.userRole)) router.replace('/')
@@ -114,7 +117,7 @@ function initials(name) {
       </div>
       <div class="toolbar-right">
         <span class="record-count">{{ filtered.length }} account(s)</span>
-        <button class="btn btn-primary" @click="openAdd">
+        <button v-if="hasPermission('Account Management', 'Add')" class="btn btn-primary" @click="openAdd">
           <span class="icon-svg" v-html="icons.add"></span> Add Account
         </button>
       </div>
@@ -152,10 +155,10 @@ function initials(name) {
             <td>{{ u.department || '—' }}</td>
             <td>
               <div class="action-btns">
-                <button class="btn-icon" title="Edit" @click="openEdit(u)">
+                <button v-if="hasPermission('Account Management', 'Edit')" class="btn-icon" title="Edit" @click="openEdit(u)">
                   <span class="icon-svg" v-html="icons.edit"></span>
                 </button>
-                <button class="btn-icon danger" title="Delete" @click="promptDelete(u)" :disabled="u.id === auth.currentUser?.id">
+                <button v-if="hasPermission('Account Management', 'Delete')" class="btn-icon danger" title="Delete" @click="promptDelete(u)" :disabled="u.id === auth.currentUser?.id">
                   <span class="icon-svg" v-html="icons.delete"></span>
                 </button>
               </div>

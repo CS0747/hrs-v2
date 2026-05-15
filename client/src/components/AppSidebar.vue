@@ -1,10 +1,16 @@
 <script setup>
-import { ref, computed, watchEffect, watch } from 'vue'
+import { ref, computed, watchEffect, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { usePermissions } from '@/composables/usePermissions'
 
 const route = useRoute()
 const auth  = useAuthStore()
+const { hasPermission, loadPermissions } = usePermissions()
+
+onMounted(async () => {
+  await loadPermissions()
+})
 
 const props = defineProps({ open: { type: Boolean, default: true } })
 const emit  = defineEmits(['toggle'])
@@ -49,83 +55,83 @@ const allMenuGroups = computed(() => {
         label: 'HR Management',
         iconKey: 'hrgroup',
         items: [
-          { label: 'Schedule Database', iconKey: 'schedule', to: '/schedule' },
-        ],
+          { label: 'Schedule Database', iconKey: 'schedule', to: '/schedule', module: 'Schedule Database' },
+        ].filter(item => hasPermission(item.module, 'View')),
       },
       {
         label: 'Administration',
         iconKey: 'admin',
         items: [
-          { label: 'User Manual', iconKey: 'usermanual', to: '/user-manual' },
+          { label: 'User Manual', iconKey: 'usermanual', to: '/user-manual', module: null },
         ],
       },
-    ]
+    ].filter(group => group.items.length > 0)
   }
 
-  // All other roles — full menu filtered by role
+  // All other roles — full menu filtered by role and permissions
   return [
     {
       label: 'HR Management',
       iconKey: 'hrgroup',
       items: [
-        { label: 'Employee Masterlist', iconKey: 'employees',  to: '/employees' },
-        { label: 'Birthday Celebrants', iconKey: 'birthday',   to: '/employees/birthdays' },
-        { label: 'Schedule Database',   iconKey: 'schedule',   to: '/schedule' },
-        { label: 'Trainings',           iconKey: 'trainings',  to: '/trainings' },
-        { label: 'Departments',         iconKey: 'department', to: '/departments' },
-      ],
+        { label: 'Employee Masterlist', iconKey: 'employees',  to: '/employees', module: 'Employee Masterlist' },
+        { label: 'Birthday Celebrants', iconKey: 'birthday',   to: '/employees/birthdays', module: 'Birthday Celebrants' },
+        { label: 'Schedule Database',   iconKey: 'schedule',   to: '/schedule', module: 'Schedule Database' },
+        { label: 'Trainings',           iconKey: 'trainings',  to: '/trainings', module: 'Trainings' },
+        { label: 'Departments',         iconKey: 'department', to: '/departments', module: 'Departments' },
+      ].filter(item => hasPermission(item.module, 'View')),
     },
     {
       label: 'Leave & T.O.',
       iconKey: 'leavegroup',
       items: [
-        { label: 'Leave Management',    iconKey: 'leave', to: '/leave' },
-        { label: 'Travel Order (T.O.)', iconKey: 'to',    to: '/to' },
-      ],
+        { label: 'Leave Management',    iconKey: 'leave', to: '/leave', module: 'Leave Management' },
+        { label: 'Travel Order (T.O.)', iconKey: 'to',    to: '/to', module: 'Travel Orders' },
+      ].filter(item => hasPermission(item.module, 'View')),
     },
     {
       label: 'DTR & Transmittal',
       iconKey: 'dtrgroup',
       items: [
-        { label: 'DTR Transmittal',     iconKey: 'dtr',   to: '/dtr' },
-        { label: 'Transmittal Summary', iconKey: 'audit', to: '/audit' },
-      ],
+        { label: 'DTR Transmittal',     iconKey: 'dtr',   to: '/dtr', module: 'DTR Transmittal' },
+        { label: 'Transmittal Summary', iconKey: 'audit', to: '/audit', module: 'Audit Transmittal' },
+      ].filter(item => hasPermission(item.module, 'View')),
     },
     {
       label: 'Workflow',
       iconKey: 'workflow',
       items: [
-        { label: 'Verification',         iconKey: 'verification', to: '/verification' },
-        { label: 'Tracking & Receiving', iconKey: 'tracking',     to: '/tracking' },
-        { label: 'Signatories',          iconKey: 'signatories',  to: '/signatories' },
-      ],
+        { label: 'Verification',         iconKey: 'verification', to: '/verification', module: 'Verification' },
+        { label: 'Tracking & Receiving', iconKey: 'tracking',     to: '/tracking', module: 'Tracking / Receiving' },
+        { label: 'Signatories',          iconKey: 'signatories',  to: '/signatories', module: 'Signatories' },
+      ].filter(item => hasPermission(item.module, 'View')),
     },
     {
       label: 'Tools',
       iconKey: 'tools',
       items: [
-        { label: 'AI Scanning Tools', iconKey: 'ai', to: '/ai-scanning' },
-      ],
+        { label: 'AI Scanning Tools', iconKey: 'ai', to: '/ai-scanning', module: 'AI Scanning Tools' },
+      ].filter(item => hasPermission(item.module, 'View')),
     },
     ...(role === 'DIOS' ? [{
       label: 'Administration',
       iconKey: 'admin',
       items: [
-        { label: 'Account Management', iconKey: 'accounts',    to: '/accounts' },
-        { label: 'Audit History',      iconKey: 'audittrail',  to: '/audit-trail' },
-        { label: 'Version History',    iconKey: 'versionhist', to: '/version-history' },
-        { label: 'System Control',     iconKey: 'dios',        to: '/dios-control' },
-        { label: 'User Manual',        iconKey: 'usermanual',  to: '/user-manual' },
-      ],
+        { label: 'Account Management', iconKey: 'accounts',    to: '/accounts', module: 'Account Management' },
+        { label: 'Audit History',      iconKey: 'audittrail',  to: '/audit-trail', module: 'Audit History' },
+        { label: 'Version History',    iconKey: 'versionhist', to: '/version-history', module: null },
+        { label: 'System Control',     iconKey: 'dios',        to: '/dios-control', module: null },
+        { label: 'User Manual',        iconKey: 'usermanual',  to: '/user-manual', module: null },
+      ].filter(item => !item.module || hasPermission(item.module, 'View')),
     }] : [{
       label: 'Administration',
       iconKey: 'admin',
       items: [
-        { label: 'Version History', iconKey: 'versionhist', to: '/version-history' },
-        { label: 'User Manual',     iconKey: 'usermanual',  to: '/user-manual' },
+        { label: 'Version History', iconKey: 'versionhist', to: '/version-history', module: null },
+        { label: 'User Manual',     iconKey: 'usermanual',  to: '/user-manual', module: null },
       ],
     }]),
-  ]
+  ].filter(group => group.items.length > 0)
 })
 
 const menuGroups = allMenuGroups

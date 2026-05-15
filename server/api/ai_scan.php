@@ -4,6 +4,20 @@ require_once 'db.php';
 $method = $_SERVER['REQUEST_METHOD'];
 $conn   = getConnection();
 $action = $_GET['action'] ?? '';
+$userId = (int)($_SERVER['HTTP_X_USER_ID'] ?? 0);
+
+// Map HTTP methods to actions
+$actionMap = [
+    'GET'    => 'View',
+    'POST'   => $action === 'save' ? 'Add' : 'Upload',
+    'DELETE' => 'Delete',
+];
+$permAction = $actionMap[$method] ?? 'View';
+
+// Check permission before processing request
+if (!checkPermission($conn, $userId, 'AI Scanning Tools', $permAction)) {
+    denyAccess('AI Scanning Tools', $permAction);
+}
 
 switch ($method) {
 

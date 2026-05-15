@@ -2,13 +2,16 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useLeaveStore } from '@/stores/leave'
 import { useEmployeeStore } from '@/stores/employees'
+import { usePermissions } from '@/composables/usePermissions'
 import AppModal from '@/components/AppModal.vue'
 
 const store = useLeaveStore()
 const employeeStore = useEmployeeStore()
+const { hasPermission, loadPermissions } = usePermissions()
 
 // Fetch leave records when component mounts
-onMounted(() => {
+onMounted(async () => {
+  await loadPermissions()
   store.fetchRecords()
   document.addEventListener('mousedown', handleClickOutside)
 })
@@ -165,7 +168,7 @@ function statusClass(s) {
       </div>
       <div class="toolbar-right">
         <span class="record-count">{{ filtered.length }} record(s)</span>
-        <button class="btn btn-primary" @click="openAdd">
+        <button v-if="hasPermission('Leave Management', 'Add')" class="btn btn-primary" @click="openAdd">
           <span class="icon-svg" v-html="svgIcons.add"></span> Add Leave
         </button>
       </div>
@@ -193,8 +196,8 @@ function statusClass(s) {
             <td>{{ r.approvedBy || '—' }}</td>
             <td>
               <div class="action-btns">
-                <button class="btn-icon" @click="openEdit(r)"><span class="icon-svg" v-html="svgIcons.edit"></span></button>
-                <button class="btn-icon danger" @click="promptDelete(r.id)"><span class="icon-svg" v-html="svgIcons.delete"></span></button>
+                <button v-if="hasPermission('Leave Management', 'Edit')" class="btn-icon" @click="openEdit(r)"><span class="icon-svg" v-html="svgIcons.edit"></span></button>
+                <button v-if="hasPermission('Leave Management', 'Delete')" class="btn-icon danger" @click="promptDelete(r.id)"><span class="icon-svg" v-html="svgIcons.delete"></span></button>
               </div>
             </td>
           </tr>

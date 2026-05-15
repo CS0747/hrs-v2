@@ -1,11 +1,17 @@
 ﻿<script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEmployeeStore } from '@/stores/employees'
+import { usePermissions } from '@/composables/usePermissions'
 import AppSelect from '@/components/AppSelect.vue'
 
 const router = useRouter()
 const store  = useEmployeeStore()
+const { hasPermission, loadPermissions } = usePermissions()
+
+onMounted(async () => {
+  await loadPermissions()
+})
 
 const search         = ref('')
 const filterService  = ref('')
@@ -134,7 +140,7 @@ function sortIcon(col) {
       </div>
       <div class="toolbar-right">
         <span class="record-count">{{ filtered.length }} record(s)</span>
-        <button class="btn btn-primary" @click="router.push('/employees/new')">
+        <button v-if="hasPermission('Employee Masterlist', 'Add')" class="btn btn-primary" @click="router.push('/employees/new')">
           <span class="icon-svg" v-html="svgIcons.add"></span> Add Employee
         </button>
         <router-link to="/employees/birthdays" class="btn btn-secondary">🎂 Birthdays</router-link>
@@ -177,10 +183,10 @@ function sortIcon(col) {
               <td>{{ getAge(emp.birthDate) }}</td>
               <td>
                 <div class="action-btns">
-                  <button class="btn-icon" title="Edit" @click="goEdit(emp)">
+                  <button v-if="hasPermission('Employee Masterlist', 'Edit')" class="btn-icon" title="Edit" @click="goEdit(emp)">
                     <span class="icon-svg" v-html="svgIcons.edit"></span>
                   </button>
-                  <button class="btn-icon danger" title="Delete" @click="promptDelete(emp)">
+                  <button v-if="hasPermission('Employee Masterlist', 'Delete')" class="btn-icon danger" title="Delete" @click="promptDelete(emp)">
                     <span class="icon-svg" v-html="svgIcons.delete"></span>
                   </button>
                 </div>

@@ -3,10 +3,17 @@ import { ref, computed } from 'vue'
 import { useScheduleStore } from '@/stores/schedule'
 import { useEmployeeStore } from '@/stores/employees'
 import { useAuthStore } from '@/stores/auth'
+import { usePermissions } from '@/composables/usePermissions'
+import { onMounted } from 'vue'
 
 const store    = useScheduleStore()
 const empStore = useEmployeeStore()
 const auth     = useAuthStore()
+const { hasPermission, loadPermissions } = usePermissions()
+
+onMounted(async () => {
+  await loadPermissions()
+})
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 const svgIcons = {
@@ -547,7 +554,7 @@ function selectAllMonth() {
         />
       </div>
       <div class="toolbar-right">
-        <button class="btn btn-primary" @click="openAdd">
+        <button v-if="hasPermission('Schedule Database', 'Add')" class="btn btn-primary" @click="openAdd">
           <span class="icon-svg" v-html="svgIcons.add"></span> Add Schedule
         </button>
       </div>
@@ -605,7 +612,7 @@ function selectAllMonth() {
             <button class="view-pill" :class="{ active: calView === 'week' }" @click="calView = 'week'">Week</button>
             <button class="view-pill" :class="{ active: calView === 'month' }" @click="calView = 'month'">Month</button>
           </div>
-          <button class="btn btn-primary cal-add-btn" @click="openAdd">
+          <button v-if="hasPermission('Schedule Database', 'Add')" class="btn btn-primary cal-add-btn" @click="openAdd">
             <span class="icon-svg" v-html="svgIcons.add"></span> Add
           </button>
         </div>
@@ -646,6 +653,7 @@ function selectAllMonth() {
                 <div
                   v-for="s in schedulesForColumn(colIdx)"
                   :key="s.id"
+                  v-if="hasPermission('Schedule Database', 'Edit')"
                   class="cal-block"
                   :style="blockStyle(s)"
                   @click="openEdit(s)"
@@ -678,6 +686,7 @@ function selectAllMonth() {
                 <div
                   v-for="s in schedulesForDate(cell)"
                   :key="s.id"
+                  v-if="hasPermission('Schedule Database', 'Edit')"
                   class="cal-month-block"
                   :style="{ background: SHIFT_BLOCK_STYLE[s.shift]?.bg, borderLeft: `3px solid ${SHIFT_BLOCK_STYLE[s.shift]?.border}`, color: SHIFT_BLOCK_STYLE[s.shift]?.text }"
                   @click="openEdit(s)"

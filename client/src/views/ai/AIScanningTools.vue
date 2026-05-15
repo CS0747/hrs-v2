@@ -1,12 +1,15 @@
 ﻿<script setup>
 import { ref, onMounted } from 'vue'
+import { usePermissions } from '@/composables/usePermissions'
 
 const API     = 'http://localhost/hrs-v2/server/api/ai_scan.php'
 const SAVE_API = API + '?action=save'
+const { hasPermission, loadPermissions } = usePermissions()
 
 // -- Tesseract for image OCR ---------------------------------------------------
 let Tesseract = null
 onMounted(async () => {
+  await loadPermissions()
   await loadSavedScans()
   if (!window.Tesseract) {
     const s = document.createElement('script')
@@ -799,8 +802,8 @@ function docTypeColor(t) {
               </div>
             </div>
             <div class="file-row-actions" @click.stop>
-              <button class="btn-icon" title="Preview" @click="openPreview(scan)"><span v-html="icons.eye"></span></button>
-              <button class="btn-icon danger" title="Remove" @click="deleteScan(scan)"><span v-html="icons.delete"></span></button>
+              <button v-if="hasPermission('AI Scanning Tools', 'View')" class="btn-icon" title="Preview" @click="openPreview(scan)"><span v-html="icons.eye"></span></button>
+              <button v-if="hasPermission('AI Scanning Tools', 'Delete')" class="btn-icon danger" title="Remove" @click="deleteScan(scan)"><span v-html="icons.delete"></span></button>
             </div>
           </div>
         </div>
@@ -824,8 +827,8 @@ function docTypeColor(t) {
               </div>
             </div>
             <div class="file-row-actions" @click.stop>
-              <button class="btn-icon" title="Preview" @click="openPreview(scan)"><span v-html="icons.eye"></span></button>
-              <button class="btn-icon danger" title="Delete" @click="deleteScan(scan)"><span v-html="icons.delete"></span></button>
+              <button v-if="hasPermission('AI Scanning Tools', 'View')" class="btn-icon" title="Preview" @click="openPreview(scan)"><span v-html="icons.eye"></span></button>
+              <button v-if="hasPermission('AI Scanning Tools', 'Delete')" class="btn-icon danger" title="Delete" @click="deleteScan(scan)"><span v-html="icons.delete"></span></button>
             </div>
           </div>
         </div>
@@ -896,13 +899,13 @@ function docTypeColor(t) {
 
           <!-- Actions -->
           <div class="preview-actions">
-            <button v-if="!selectedScan._saved" class="btn btn-primary" @click="saveScan(selectedScan)" :disabled="saving">
+            <button v-if="hasPermission('AI Scanning Tools', 'Add') && !selectedScan._saved" class="btn btn-primary" @click="saveScan(selectedScan)" :disabled="saving">
               <span v-html="icons.save"></span>
               {{ saving ? 'Saving...' : 'Save to System' }}
             </button>
             <span v-else class="saved-badge">? Saved to database</span>
-            <button class="btn btn-export-excel" @click="exportToExcel(selectedScan)">? Export Excel</button>
-            <button class="btn btn-export-word" @click="exportToWord(selectedScan)">? Export Word</button>
+            <button v-if="hasPermission('AI Scanning Tools', 'Export')" class="btn btn-export-excel" @click="exportToExcel(selectedScan)">? Export Excel</button>
+            <button v-if="hasPermission('AI Scanning Tools', 'Export')" class="btn btn-export-word" @click="exportToWord(selectedScan)">? Export Word</button>
             <button class="btn btn-secondary" @click="closePreview">Close</button>
           </div>
         </div>

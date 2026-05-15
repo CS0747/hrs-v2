@@ -89,6 +89,13 @@ switch ($action) {
     // GET /auth.php?action=users
     case 'users':
         if ($method !== 'GET') sendError('GET required', 405);
+        
+        // Check permission for Account Management module
+        $userId = (int)($_SERVER['HTTP_X_USER_ID'] ?? 0);
+        if (!checkPermission($conn, $userId, 'Account Management', 'View')) {
+            denyAccess('Account Management', 'View');
+        }
+        
         $rows = $conn->query(
             'SELECT id, username, name, role, department, active, created_at FROM users ORDER BY id'
         )->fetch_all(MYSQLI_ASSOC);

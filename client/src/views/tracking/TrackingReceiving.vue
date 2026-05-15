@@ -1,11 +1,14 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useTrackingStore } from '@/stores/tracking'
+import { usePermissions } from '@/composables/usePermissions'
 
 const store = useTrackingStore()
+const { hasPermission, loadPermissions } = usePermissions()
 
 // Fetch tracking records on component mount
-onMounted(() => {
+onMounted(async () => {
+  await loadPermissions()
   store.fetchRecords()
 })
 
@@ -196,7 +199,7 @@ function statusClass(s) {
         <button class="btn btn-print" @click="printList">
           <span class="icon-svg" v-html="svgIcons.print"></span> Print
         </button>
-        <button class="btn btn-primary" @click="openAdd">
+        <button v-if="hasPermission('Tracking / Receiving', 'Add')" class="btn btn-primary" @click="openAdd">
           <span class="icon-svg" v-html="svgIcons.add"></span>
           {{ activeTab === 'receiving' ? 'Add Receiving' : 'Add Outgoing' }}
         </button>
@@ -220,10 +223,10 @@ function statusClass(s) {
             <td class="remarks-cell">{{ r.remarks || '—' }}</td>
             <td>
               <div class="action-btns">
-                <button v-if="r.status !== 'Received'" class="btn btn-receive-sm" @click="markReceived(r)">
+                <button v-if="r.status !== 'Received' && hasPermission('Tracking / Receiving', 'Edit')" class="btn btn-receive-sm" @click="markReceived(r)">
                   <span class="icon-svg" v-html="svgIcons.receive"></span> Receive
                 </button>
-                <button class="btn-icon" @click="openEdit(r)"><span class="icon-svg" v-html="svgIcons.edit"></span></button>
+                <button v-if="hasPermission('Tracking / Receiving', 'Edit')" class="btn-icon" @click="openEdit(r)"><span class="icon-svg" v-html="svgIcons.edit"></span></button>
               </div>
             </td>
           </tr>
