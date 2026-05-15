@@ -2,10 +2,12 @@
 import { ref, onMounted } from 'vue'
 import { useSignatoryStore } from '@/stores/signatories'
 import { usePermissions } from '@/composables/usePermissions'
+import { useNotificationStore } from '@/stores/notifications'
 import AppModal from '@/components/AppModal.vue'
 
 const store = useSignatoryStore()
 const { hasPermission, loadPermissions } = usePermissions()
+const notificationStore = useNotificationStore()
 
 // Fetch signatories on component mount
 onMounted(async () => {
@@ -51,7 +53,7 @@ async function confirmSave() {
     showSaveModal.value = false
     showForm.value = false
   } catch (err) {
-    alert('Error saving signatory: ' + err.message)
+    notificationStore.error('Error saving signatory: ' + err.message)
   } finally {
     saving.value = false
   }
@@ -61,21 +63,19 @@ function deleteRec(id) {
   showDeleteModal.value = true
 }
 async function confirmDelete() {
-  if (deleteTarget.value) {
-    try {
-      await store.deleteRecord(deleteTarget.value.id)
-      showDeleteModal.value = false
-      deleteTarget.value = null
-    } catch (err) {
-      alert('Error deleting signatory: ' + err.message)
-    }
+  try {
+    await store.deleteRecord(deleteTarget.value.id)
+    showDeleteModal.value = false
+    deleteTarget.value = null
+  } catch (err) {
+    notificationStore.error('Error deleting signatory: ' + err.message)
   }
 }
-async function toggleActive(s) {
+async function toggleActive(id) {
   try {
-    await store.toggleActive(s.id)
+    await store.toggleActive(id)
   } catch (err) {
-    alert('Error toggling status: ' + err.message)
+    notificationStore.error('Error toggling status: ' + err.message)
   }
 }
 </script>
