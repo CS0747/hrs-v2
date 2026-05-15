@@ -4,6 +4,7 @@ import { useScheduleStore } from '@/stores/schedule'
 import { useEmployeeStore } from '@/stores/employees'
 import { useAuthStore } from '@/stores/auth'
 import { usePermissions } from '@/composables/usePermissions'
+import { useNotificationStore } from '@/stores/notifications'
 import { onMounted } from 'vue'
 import jsPDF from 'jspdf'
 import 'jspdf-autotable'
@@ -12,6 +13,7 @@ const store    = useScheduleStore()
 const empStore = useEmployeeStore()
 const auth     = useAuthStore()
 const { hasPermission, loadPermissions } = usePermissions()
+const notificationStore = useNotificationStore()
 
 onMounted(async () => {
   await loadPermissions()
@@ -169,7 +171,7 @@ async function doSave() {
     }
     showForm.value = false
   } catch (e) {
-    alert('Failed to save schedule: ' + e.message)
+    notificationStore.error('Failed to save schedule: ' + e.message)
   } finally {
     saving.value = false
   }
@@ -191,7 +193,7 @@ async function confirmDelete() {
   try {
     await store.deleteSchedule(deleteTarget.value.id)
   } catch (e) {
-    alert('Failed to delete: ' + e.message)
+    notificationStore.error('Failed to delete: ' + e.message)
   } finally {
     cancelDelete()
   }

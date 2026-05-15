@@ -1,10 +1,12 @@
 ﻿<script setup>
 import { ref, onMounted } from 'vue'
 import { usePermissions } from '@/composables/usePermissions'
+import { useNotificationStore } from '@/stores/notifications'
 
 const API     = 'http://localhost/hrs-v2/server/api/ai_scan.php'
 const SAVE_API = API + '?action=save'
 const { hasPermission, loadPermissions } = usePermissions()
+const notificationStore = useNotificationStore()
 
 // -- Tesseract for image OCR ---------------------------------------------------
 let Tesseract = null
@@ -603,8 +605,8 @@ async function saveScan(scan) {
     savedScans.value.unshift({ ...scan })
     pendingScans.value = pendingScans.value.filter(s => s !== scan)
     showPreview.value  = false
-    alert('Saved successfully!')
-  } catch (e) { alert('Save failed: ' + e.message) }
+    notificationStore.success('Saved successfully!')
+  } catch (e) { notificationStore.error('Save failed: ' + e.message) }
   finally { saving.value = false }
 }
 
