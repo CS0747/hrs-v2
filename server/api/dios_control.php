@@ -7,12 +7,10 @@ ini_set('display_errors', 0);
 error_reporting(0);
 ob_start();
 require_once 'db.php';
+require_once 'cors.php';
 ob_clean();
 
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, X-DIOS-Token');
 
 $method = $_SERVER['REQUEST_METHOD'];
 if ($method === 'OPTIONS') { http_response_code(200); exit; }
@@ -25,7 +23,7 @@ $ALLOWED_TABLES = [
     'employees', 'departments', 'leave_records', 'travel_orders',
     'dtr_records', 'dtr_history', 'document_tracking', 'audit_logs',
     'trainings', 'signatories', 'schedules', 'module_permissions',
-    'users', 'payroll_records',
+    'users',
 ];
 
 switch ($action) {
@@ -42,6 +40,7 @@ switch ($action) {
         $table = preg_replace('/[^a-zA-Z0-9_]/', '', $_GET['table'] ?? '');
         if (!$table) sendError('Table name required');
         if (!in_array($table, $ALLOWED_TABLES)) sendError('Table not permitted', 403);
+        // Table name is sanitized and whitelisted, safe to use directly
         $result = $conn->query("DESCRIBE `$table`");
         if (!$result) sendError('Table not found: ' . $conn->error);
         sendJson(['columns' => $result->fetch_all(MYSQLI_ASSOC)]);
@@ -69,10 +68,13 @@ switch ($action) {
             ];
         }
         $db      = DB_NAME;
-        $sizeRes = $conn->query(
+        $stmt    = $conn->prepare(
             "SELECT ROUND(SUM(data_length+index_length)/1024/1024,2) AS size_mb
-             FROM information_schema.tables WHERE table_schema='$db'"
+             FROM information_schema.tables WHERE table_schema=?"
         );
+        $stmt->bind_param('s', $db);
+        $stmt->execute();
+        $sizeRes = $stmt->get_result();
         sendJson([
             'stats'       => $stats,
             'db_size_mb'  => $sizeRes ? (float)$sizeRes->fetch_assoc()['size_mb'] : 0,
@@ -99,7 +101,12 @@ switch ($action) {
         }
 
         // Execution timeout via connection timeout (best effort)
-        $conn->query("SET SESSION MAX_EXECUTION_TIME=10000"); // 10s
+        // Note: MAX_EXECUTION_TIME is only available in MySQL 5.7.8+
+        try {
+            $conn->query("SET SESSION MAX_EXECUTION_TIME=10000"); // 10s
+        } catch (Exception $e) {
+            // Ignore if not supported
+        }
 
         $start   = microtime(true);
         $result  = $conn->query($sql);
@@ -139,6 +146,7 @@ switch ($action) {
         if (!$table) sendError('Table name required');
         if (!in_array($table, $ALLOWED_TABLES)) sendError('Table not permitted', 403);
 
+        // Table name is sanitized and whitelisted, LIMIT/OFFSET are cast to int - safe
         $result   = $conn->query("SELECT * FROM `$table` LIMIT $limit OFFSET $offset");
         if (!$result) sendError('Query failed: ' . $conn->error);
         $countRes = $conn->query("SELECT COUNT(*) as c FROM `$table`");

@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import AppModal from '@/components/AppModal.vue'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 
 const auth = useAuthStore()
 const AUDIT_API = 'http://localhost/hrs-v2/server/api/audit_logs.php'
@@ -19,10 +20,8 @@ const filterDate   = ref('')
 // Modal states
 const showSnapshot    = ref(false)
 const snapshotData    = ref(null)
-const showAllVersions = ref(false)
-const allVersionsKey  = ref(null)   // { module, recordId, label }
 
-const MODULES = ['Employee', 'Leave', 'Payroll', 'Schedule', 'Training', 'DTR', 'T.O.', 'Tracking', 'Signatory', 'Department', 'Account']
+const MODULES = ['Employee', 'Leave', 'Schedule', 'Training', 'DTR', 'T.O.', 'Tracking', 'Signatory', 'Department', 'Account']
 const ACTIONS = ['CREATE', 'UPDATE', 'DELETE']
 
 // ── Fetch ─────────────────────────────────────────────────────────────────────
@@ -65,14 +64,7 @@ const filtered = computed(() => {
 })
 
 // ── All versions for a specific record ────────────────────────────────────────
-const recordVersions = computed(() => {
-  if (!allVersionsKey.value) return []
-  const { module, recordId } = allVersionsKey.value
-  return logs.value.filter(r =>
-    r.module === module &&
-    (recordId ? String(r.record_id) === String(recordId) : true)
-  )
-})
+// Removed - no longer needed
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function actionBadgeClass(type) {
@@ -85,7 +77,7 @@ function actionLabel(type) {
 
 function moduleBadgeClass(mod) {
   const map = {
-    Employee: 'mod-employee', Leave: 'mod-leave', Payroll: 'mod-payroll',
+    Employee: 'mod-employee', Leave: 'mod-leave',
     Schedule: 'mod-schedule', Training: 'mod-training', DTR: 'mod-dtr',
     'T.O.': 'mod-to', Tracking: 'mod-tracking', Signatory: 'mod-signatory',
     Auth: 'mod-auth',
@@ -112,34 +104,7 @@ function viewSnapshot(entry) {
   showSnapshot.value = true
 }
 
-function openAllVersions(entry) {
-  allVersionsKey.value = {
-    module:   entry.module,
-    recordId: entry.record_id,
-    label:    entry.details ?? entry.action,
-  }
-  showAllVersions.value = true
-}
-
-const showClearModal = ref(false)
-
-async function clearHistory() {
-  showClearModal.value = true
-}
-async function confirmClear() {
-  showClearModal.value = false
-  // Archive all shown logs
-  await Promise.all(
-    filtered.value.map(r =>
-      fetch(`${AUDIT_API}?id=${r.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ archived: 1 }),
-      })
-    )
-  )
-  await fetchLogs()
-}
+// Removed unused functions: openAllVersions, clearHistory, confirmClear
 
 function renderJson(val) {
   if (!val) return '—'
@@ -153,8 +118,97 @@ function renderJson(val) {
 }
 
 const svgClose   = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`
-const svgHistory = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>`
 const svgRefresh = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>`
+const svgDownload = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>`
+
+// ── PDF Export ────────────────────────────────────────────────────────────────
+async function exportToPDF() {
+  try {
+    const doc = new jsPDF()
+    
+    // Add title
+    doc.setFontSize(20)
+    doc.setTextColor(26, 58, 92)
+    doc.text('Version History Report', 14, 20)
+    
+    // Add metadata
+    doc.setFontSize(10)
+    doc.setTextColor(100, 100, 100)
+    const now = new Date()
+    doc.text(`Generated: ${now.toLocaleString()}`, 14, 30)
+    doc.text(`Total Records: ${filtered.value.length}`, 14, 36)
+    
+    // Add filters info
+    const filters = []
+    if (filterModule.value) filters.push(`Module: ${filterModule.value}`)
+    if (filterAction.value) filters.push(`Action: ${filterAction.value}`)
+    if (filterDate.value) filters.push(`Date: ${filterDate.value}`)
+    if (search.value) filters.push(`Search: "${search.value}"`)
+    
+    if (filters.length > 0) {
+      doc.text(`Filters: ${filters.join(' | ')}`, 14, 42)
+    }
+    
+    // Prepare table data
+    const tableData = filtered.value.map(entry => [
+      actionLabel(entry.action_type),
+      entry.module || '—',
+      entry.details || '—',
+      entry.user_name || '—',
+      formatDate(entry.created_at)
+    ])
+    
+    // Add table
+    autoTable(doc, {
+      startY: filters.length > 0 ? 48 : 42,
+      head: [['Action', 'Module', 'Details', 'User', 'Date & Time']],
+      body: tableData,
+      styles: { 
+        fontSize: 8,
+        cellPadding: 3,
+      },
+      headStyles: { 
+        fillColor: [26, 58, 92],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        halign: 'left'
+      },
+      columnStyles: {
+        0: { cellWidth: 25 },  // Action
+        1: { cellWidth: 25 },  // Module
+        2: { cellWidth: 60 },  // Details
+        3: { cellWidth: 30 },  // User
+        4: { cellWidth: 40 }   // Date & Time
+      },
+      alternateRowStyles: {
+        fillColor: [249, 250, 251]
+      },
+      margin: { top: 10 }
+    })
+    
+    // Add footer with page numbers
+    const pageCount = doc.internal.getNumberOfPages()
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i)
+      doc.setFontSize(8)
+      doc.setTextColor(150, 150, 150)
+      doc.text(
+        `Page ${i} of ${pageCount}`,
+        doc.internal.pageSize.getWidth() / 2,
+        doc.internal.pageSize.getHeight() - 10,
+        { align: 'center' }
+      )
+    }
+    
+    // Save the PDF
+    const filename = `version-history-${new Date().toISOString().split('T')[0]}.pdf`
+    doc.save(filename)
+    
+  } catch (e) {
+    console.error('PDF generation error:', e)
+    alert('Failed to generate PDF: ' + e.message)
+  }
+}
 </script>
 
 <template>
@@ -169,7 +223,10 @@ const svgRefresh = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.65
           <span v-html="svgRefresh" class="icon-svg"></span>
           {{ loading ? 'Loading...' : 'Refresh' }}
         </button>
-        <button class="btn btn-danger" @click="clearHistory" :disabled="loading">🗑 Clear History</button>
+        <button class="btn btn-download" @click="exportToPDF" :disabled="loading || filtered.length === 0">
+          <span v-html="svgDownload" class="icon-svg"></span>
+          Download PDF
+        </button>
       </div>
     </div>
 
@@ -212,15 +269,14 @@ const svgRefresh = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.65
             <th>Record / Details</th>
             <th>By</th>
             <th>Date &amp; Time</th>
-            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="6" class="empty-row">Loading...</td>
+            <td colspan="5" class="empty-row">Loading...</td>
           </tr>
           <tr v-else-if="filtered.length === 0">
-            <td colspan="6" class="empty-row">
+            <td colspan="5" class="empty-row">
               No version history yet. Actions across all modules will appear here.
             </td>
           </tr>
@@ -238,14 +294,6 @@ const svgRefresh = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.65
             <td class="details-col">{{ entry.details }}</td>
             <td>{{ entry.user_name }}</td>
             <td class="ts-col">{{ formatDate(entry.created_at) }}</td>
-            <td>
-              <div class="action-btns">
-                <button class="btn-view" @click="viewSnapshot(entry)">👁 View</button>
-                <button class="btn-versions" @click="openAllVersions(entry)" title="All versions for this record">
-                  <span v-html="svgHistory" class="icon-svg"></span> History
-                </button>
-              </div>
-            </td>
           </tr>
         </tbody>
       </table>
@@ -290,61 +338,6 @@ const svgRefresh = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.65
         </div>
       </div>
     </Transition>
-
-    <!-- ── All Versions Modal ──────────────────────────────────────────────── -->
-    <Transition name="modal">
-      <div v-if="showAllVersions" class="modal-overlay" @click.self="showAllVersions = false">
-        <div class="modal modal-wide">
-          <div class="modal-header">
-            <div>
-              <h3>Record History</h3>
-              <p class="snap-meta">{{ allVersionsKey?.label }} — {{ recordVersions.length }} version(s)</p>
-            </div>
-            <button class="btn-icon" @click="showAllVersions = false" v-html="svgClose"></button>
-          </div>
-
-          <div v-if="recordVersions.length === 0" class="empty-row" style="padding:24px;text-align:center;color:#aaa;">
-            No versions found for this record.
-          </div>
-
-          <div v-else class="versions-timeline">
-            <div
-              v-for="(ver, idx) in recordVersions"
-              :key="ver.id"
-              class="version-card"
-              :class="{ 'version-latest': idx === 0 }"
-            >
-              <div class="version-card-header">
-                <div class="version-left">
-                  <span class="version-num">v{{ recordVersions.length - idx }}</span>
-                  <span class="type-badge" :class="actionBadgeClass(ver.action_type)">{{ actionLabel(ver.action_type) }}</span>
-                  <span v-if="idx === 0" class="latest-chip">Latest</span>
-                </div>
-                <div class="version-right">
-                  <span class="version-meta">🕐 {{ formatDate(ver.created_at) }}</span>
-                  <span class="version-meta">👤 {{ ver.user_name }}</span>
-                  <button class="btn-view" @click="viewSnapshot(ver)">👁 View Details</button>
-                </div>
-              </div>
-              <div class="version-details">{{ ver.details }}</div>
-            </div>
-          </div>
-
-          <button class="btn btn-primary close-btn" @click="showAllVersions = false">Close</button>
-        </div>
-      </div>
-    </Transition>
-
-    <!-- Clear History Confirmation -->
-    <AppModal
-      v-if="showClearModal"
-      type="warning"
-      title="Clear Version History"
-      message="This will archive all currently visible history entries. This cannot be undone."
-      confirmLabel="Yes, Clear"
-      @confirm="confirmClear"
-      @cancel="showClearModal = false"
-    />
   </div>
 </template>
 
@@ -370,6 +363,8 @@ const svgRefresh = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.65
 .btn-primary { background:#1a3a5c; color:#fff; }
 .btn-refresh { background:#ebf5fb; color:#2980b9; border:1px solid #a9cce3; }
 .btn-refresh:hover:not(:disabled) { background:#2980b9; color:#fff; }
+.btn-download { background:#eafaf1; color:#1a6b3c; border:1px solid #a8d5b5; }
+.btn-download:hover:not(:disabled) { background:#1a6b3c; color:#fff; }
 .btn-danger  { background:#fdecea; color:#e74c3c; border:1px solid #f5b7b1; }
 .btn-danger:hover:not(:disabled) { background:#e74c3c; color:#fff; }
 
@@ -399,7 +394,6 @@ const svgRefresh = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.65
 .module-badge { padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600; white-space:nowrap; }
 .mod-employee  { background:#e8f0fe; color:#1a3a5c; }
 .mod-leave     { background:#fef3e2; color:#e67e22; }
-.mod-payroll   { background:#eafaf1; color:#1a6b3c; }
 .mod-schedule  { background:#f5eef8; color:#8e44ad; }
 .mod-training  { background:#fdecea; color:#c0392b; }
 .mod-dtr       { background:#ebf5fb; color:#2980b9; }
@@ -408,15 +402,6 @@ const svgRefresh = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.65
 .mod-signatory { background:#fef9e7; color:#b7950b; }
 .mod-auth      { background:#f4f4f4; color:#666; }
 .mod-other     { background:#f4f4f4; color:#666; }
-
-/* Action buttons in table */
-.action-btns { display:flex; gap:6px; align-items:center; }
-.btn-view { background:none; border:1px solid #ddd; border-radius:6px; padding:4px 10px; font-size:11px; cursor:pointer; color:#1a3a5c; white-space:nowrap; }
-.btn-view:hover { background:#e8f0fe; }
-.btn-versions { background:none; border:1px solid #1a6b3c; border-radius:6px; padding:4px 10px; font-size:11px; cursor:pointer; color:#1a6b3c; display:inline-flex; align-items:center; gap:4px; white-space:nowrap; }
-.btn-versions:hover { background:#eafaf1; }
-.icon-svg { display:inline-flex; align-items:center; width:14px; height:14px; }
-.icon-svg :deep(svg) { width:100%; height:100%; fill:currentColor; }
 
 /* Modal base */
 .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:flex; align-items:center; justify-content:center; z-index:1000; backdrop-filter:blur(2px); }
@@ -438,18 +423,6 @@ const svgRefresh = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.65
 .snap-pre { background:#f8f9fa; border:1px solid #e9ecef; border-radius:6px; padding:10px; font-size:11px; white-space:pre-wrap; word-break:break-word; margin:0; max-height:300px; overflow-y:auto; color:#333; font-family:monospace; }
 .snap-no-data { text-align:center; color:#aaa; padding:24px; font-size:13px; }
 .close-btn { margin-top:12px; float:right; }
-
-/* All Versions timeline */
-.versions-timeline { display:flex; flex-direction:column; gap:10px; margin-bottom:16px; max-height:55vh; overflow-y:auto; padding-right:4px; }
-.version-card { border:1px solid #e9ecef; border-radius:10px; padding:12px 14px; background:#fafafa; }
-.version-card.version-latest { border-color:#1a3a5c; background:#f0f4f8; }
-.version-card-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:6px; }
-.version-left { display:flex; align-items:center; gap:8px; }
-.version-right { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-.version-num { font-size:11px; font-weight:700; color:#1a3a5c; background:#e8f0fe; padding:2px 8px; border-radius:6px; }
-.latest-chip { font-size:10px; font-weight:700; background:#1a3a5c; color:#fff; padding:2px 8px; border-radius:6px; }
-.version-meta { font-size:11px; color:#555; white-space:nowrap; }
-.version-details { font-size:12px; color:#666; padding-top:4px; border-top:1px solid #e9ecef; }
 
 /* Modal transition */
 .modal-enter-active, .modal-leave-active { transition:opacity 0.2s ease; }

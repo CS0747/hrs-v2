@@ -5,6 +5,8 @@ import { useEmployeeStore } from '@/stores/employees'
 import { useAuthStore } from '@/stores/auth'
 import { usePermissions } from '@/composables/usePermissions'
 import { onMounted } from 'vue'
+import jsPDF from 'jspdf'
+import 'jspdf-autotable'
 
 const store    = useScheduleStore()
 const empStore = useEmployeeStore()
@@ -24,6 +26,7 @@ const svgIcons = {
   save:     `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>`,
   close:    `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`,
   warn:     `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>`,
+  print:    `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>`,
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -528,6 +531,125 @@ function selectAllMonth() {
     if (!form.value.selectedDates.includes(key)) form.value.selectedDates.push(key)
   }
 }
+
+// ── PDF Export ────────────────────────────────────────────────────────────────
+function exportToPDF() {
+  const doc = new jsPDF('l', 'mm', 'a4') // landscape
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+
+  // Header
+  doc.setFontSize(18)
+  doc.setFont('helvetica', 'bold')
+  doc.text('GEAMH HRIS - Schedule Database', pageWidth / 2, 15, { align: 'center' })
+
+  doc.setFontSize(10)
+  doc.setFont('helvetica', 'normal')
+  const now = new Date().toLocaleString('en-US', { 
+    month: 'long', day: 'numeric', year: 'numeric', 
+    hour: '2-digit', minute: '2-digit' 
+  })
+  doc.text(`Generated: ${now}`, pageWidth / 2, 22, { align: 'center' })
+
+  // Period label
+  doc.setFontSize(11)
+  doc.setFont('helvetica', 'bold')
+  doc.text(`Period: ${periodLabel.value}`, pageWidth / 2, 28, { align: 'center' })
+
+  // Filter info
+  let filterText = 'Filters: '
+  const filters = []
+  if (search.value) filters.push(`Search: "${search.value}"`)
+  if (filterDept.value) filters.push(`Department: ${filterDept.value}`)
+  if (filterShift.value) filters.push(`Shift: ${filterShift.value}`)
+  if (filterApproval.value) filters.push(`Status: ${filterApproval.value}`)
+  filterText += filters.length ? filters.join(' | ') : 'None'
+  
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'normal')
+  doc.text(filterText, 14, 34)
+
+  // Table data
+  const tableData = filtered.value.map(s => [
+    s.employeeNo || '—',
+    s.employeeName || '—',
+    s.department || '—',
+    s.shift || '—',
+    s.shiftTime || '—',
+    (s.days || []).join(', ') || '—',
+    s.restDay || '—',
+    s.effectiveDate || '—',
+    s.endDate || '—',
+    s.approvalStatus || 'Pending',
+  ])
+
+  // Generate table
+  doc.autoTable({
+    startY: 38,
+    head: [[
+      'Emp No.',
+      'Employee Name',
+      'Department',
+      'Shift',
+      'Shift Time',
+      'Working Days',
+      'Rest Day',
+      'Effective',
+      'End Date',
+      'Status'
+    ]],
+    body: tableData,
+    theme: 'grid',
+    headStyles: {
+      fillColor: [26, 58, 92],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      fontSize: 9,
+      halign: 'center',
+    },
+    bodyStyles: {
+      fontSize: 8,
+      cellPadding: 2,
+    },
+    columnStyles: {
+      0: { cellWidth: 22, halign: 'center' },
+      1: { cellWidth: 40 },
+      2: { cellWidth: 35 },
+      3: { cellWidth: 22, halign: 'center' },
+      4: { cellWidth: 35 },
+      5: { cellWidth: 30 },
+      6: { cellWidth: 18 },
+      7: { cellWidth: 22, halign: 'center' },
+      8: { cellWidth: 22, halign: 'center' },
+      9: { cellWidth: 22, halign: 'center' },
+    },
+    alternateRowStyles: {
+      fillColor: [248, 249, 250],
+    },
+    margin: { left: 14, right: 14 },
+    didDrawPage: (data) => {
+      // Footer
+      doc.setFontSize(8)
+      doc.setTextColor(150)
+      doc.text(
+        `Page ${data.pageNumber}`,
+        pageWidth / 2,
+        pageHeight - 10,
+        { align: 'center' }
+      )
+      doc.text(
+        'GEAMH HRIS © 2026',
+        pageWidth - 14,
+        pageHeight - 10,
+        { align: 'right' }
+      )
+    },
+  })
+
+  // Save
+  const filename = `Schedule_${periodLabel.value.replace(/\s+/g, '_')}_${Date.now()}.pdf`
+  doc.save(filename)
+}
 </script>
 
 <template>
@@ -550,8 +672,21 @@ function selectAllMonth() {
           :options="[{ label: 'All Shifts', value: '' }, ...store.shifts.map(s => ({ label: s, value: s }))]"
           placeholder="All Shifts"
         />
+        <AppSelect
+          v-model="filterApproval"
+          :options="[
+            { label: 'All Status', value: '' },
+            { label: 'Pending', value: 'Pending' },
+            { label: 'Approved', value: 'Approved' },
+            { label: 'Rejected', value: 'Rejected' }
+          ]"
+          placeholder="All Status"
+        />
       </div>
       <div class="toolbar-right">
+        <button class="btn btn-secondary" @click="exportToPDF">
+          <span class="icon-svg" v-html="svgIcons.print"></span> Export PDF
+        </button>
         <button v-if="hasPermission('Schedule Database', 'Add')" class="btn btn-primary" @click="openAdd">
           <span class="icon-svg" v-html="svgIcons.add"></span> Add Schedule
         </button>
@@ -610,6 +745,9 @@ function selectAllMonth() {
             <button class="view-pill" :class="{ active: calView === 'week' }" @click="calView = 'week'">Week</button>
             <button class="view-pill" :class="{ active: calView === 'month' }" @click="calView = 'month'">Month</button>
           </div>
+          <button class="btn btn-secondary cal-print-btn" @click="exportToPDF">
+            <span class="icon-svg" v-html="svgIcons.print"></span> PDF
+          </button>
           <button v-if="hasPermission('Schedule Database', 'Add')" class="btn btn-primary cal-add-btn" @click="openAdd">
             <span class="icon-svg" v-html="svgIcons.add"></span> Add
           </button>
@@ -928,6 +1066,7 @@ function selectAllMonth() {
 .btn-primary:hover:not(:disabled) { background:#2980b9; }
 .btn-primary:disabled { background:#a0b4c8; cursor:not-allowed; }
 .btn-secondary { background:#f0f4f8; color:#1a3a5c; border:1px solid #ddd; }
+.btn-secondary:hover:not(:disabled) { background:#e0e8f0; }
 
 /* Table */
 .table-wrapper { overflow-x:auto; overflow-y:auto; max-height:60vh; background:#fff; border-radius:12px; box-shadow:0 2px 12px rgba(0,0,0,0.07); }
@@ -1119,6 +1258,7 @@ function selectAllMonth() {
 .cal-nav-btn:hover { background:#f0f4f8; }
 .cal-week-label { font-size:14px; font-weight:700; color:#1a3a5c; white-space:nowrap; }
 .cal-week-tag { font-size:12px; font-weight:600; color:#888; background:#f0f4f8; padding:3px 10px; border-radius:12px; }
+.cal-print-btn { padding:7px 14px; font-size:12px; }
 .cal-add-btn { margin-left:auto; padding:7px 14px; font-size:12px; }
 
 /* Column headers */

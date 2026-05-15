@@ -1,5 +1,6 @@
 <?php
 require_once 'db.php';
+require_once 'cors.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $conn   = getConnection();
@@ -225,7 +226,10 @@ switch ($method) {
         if (!$id) sendError('ID required');
 
         // Fetch before delete for history log
-        $row = $conn->query("SELECT * FROM dtr_records WHERE id = $id")->fetch_assoc();
+        $stmt = $conn->prepare("SELECT * FROM dtr_records WHERE id = ?");
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
 
         $stmt = $conn->prepare('DELETE FROM dtr_records WHERE id = ?');
         $stmt->bind_param('i', $id);

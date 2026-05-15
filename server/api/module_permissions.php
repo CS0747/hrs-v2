@@ -9,16 +9,13 @@
 ini_set('display_errors', 0);
 error_reporting(0);
 ob_start();
+require_once 'cors.php';
 require_once 'db.php';
 ob_clean();
 
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
 
 $method = $_SERVER['REQUEST_METHOD'];
-if ($method === 'OPTIONS') { http_response_code(200); exit; }
 
 $conn = getConnection();
 

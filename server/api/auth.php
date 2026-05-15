@@ -6,6 +6,7 @@ ini_set('display_errors', 0);
 error_reporting(0);
 ob_start();
 require_once 'db.php';
+require_once 'cors.php';
 ob_clean();
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -144,7 +145,10 @@ switch ($action) {
 
         // Prevent deleting the last Super Admin
         $check = $conn->query("SELECT COUNT(*) as cnt FROM users WHERE role='Super Admin' AND active=1")->fetch_assoc();
-        $target = $conn->query("SELECT role FROM users WHERE id=$id")->fetch_assoc();
+        $stmt = $conn->prepare("SELECT role FROM users WHERE id=?");
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $target = $stmt->get_result()->fetch_assoc();
         if ($target && $target['role'] === 'Super Admin' && (int)$check['cnt'] <= 1) {
             sendError('Cannot delete the last Super Admin account', 403);
         }

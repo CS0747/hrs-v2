@@ -1,5 +1,6 @@
 <?php
 require_once 'db.php';
+require_once 'cors.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $conn   = getConnection();
