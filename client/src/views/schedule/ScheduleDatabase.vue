@@ -365,24 +365,20 @@ function isMiniSelected(date) {
 }
 
 // ── Schedule blocks per column ────────────────────────────────────────────────
-// Returns schedules that are active in the current week and work on a given weekday index (0=Mon)
+// Returns schedules active on a given weekday index (0=Mon) — current user only, one entry
 function schedulesForColumn(colIndex) {
-  const colDate = weekDays.value[colIndex]
-  const dayName = ALL_DAYS[colIndex] // 'Mon','Tue',...
-
+  const colDate  = weekDays.value[colIndex]
+  const dayName  = ALL_DAYS[colIndex]
+  const userName = auth.currentUser?.name ?? ''
   return store.schedules.filter(s => {
-    // Must include this weekday
+    if (s.employeeName !== userName) return false
     if (!(s.days ?? []).includes(dayName)) return false
-
-    // Check effectiveDate / endDate window
     if (s.effectiveDate) {
-      const eff = new Date(s.effectiveDate)
-      eff.setHours(0, 0, 0, 0)
+      const eff = new Date(s.effectiveDate); eff.setHours(0, 0, 0, 0)
       if (colDate < eff) return false
     }
     if (s.endDate) {
-      const end = new Date(s.endDate)
-      end.setHours(23, 59, 59, 999)
+      const end = new Date(s.endDate); end.setHours(23, 59, 59, 999)
       if (colDate > end) return false
     }
     return true
@@ -447,11 +443,13 @@ function nextMonth() {
   calendarAnchor.value = d
 }
 
-// Schedules for a specific calendar date (month view)
+// Schedules for a specific calendar date (month view) — current user only
 function schedulesForDate(date) {
   if (!date) return []
-  const dayName = ALL_DAYS[date.getDay() === 0 ? 6 : date.getDay() - 1]
+  const dayName  = ALL_DAYS[date.getDay() === 0 ? 6 : date.getDay() - 1]
+  const userName = auth.currentUser?.name ?? ''
   return store.schedules.filter(s => {
+    if (s.employeeName !== userName) return false
     if (!(s.days ?? []).includes(dayName)) return false
     if (s.effectiveDate) {
       const eff = new Date(s.effectiveDate); eff.setHours(0,0,0,0)
@@ -769,35 +767,6 @@ function selectAllMonth() {
             <div class="form-group">
               <label>End Date</label>
               <input v-model="form.endDate" type="date" />
-            </div>
-            <div class="form-group">
-              <label>Rest Day</label>
-              <input v-model="form.restDay" readonly class="readonly-input" />
-            </div>
-
-            <!-- Working days picker -->
-            <div class="form-group full">
-              <label>
-                Working Days
-                <span class="days-count">({{ form.days.length }}/{{ MAX_WORK_DAYS }} selected)</span>
-              </label>
-              <div class="days-picker">
-                <label
-                  v-for="d in ALL_DAYS"
-                  :key="d"
-                  class="day-toggle"
-                  :class="{ selected: form.days.includes(d), disabled: isDayDisabled(d) }"
-                >
-                  <input
-                    type="checkbox"
-                    :value="d"
-                    v-model="form.days"
-                    :disabled="isDayDisabled(d)"
-                    @change="onDayChange"
-                  />
-                  {{ d }}
-                </label>
-              </div>
             </div>
 
             <!-- Month calendar date picker -->
@@ -1213,11 +1182,11 @@ function selectAllMonth() {
 .cal-month-block:hover { filter:brightness(0.92); }
 
 /* ── Form month calendar ── */
-.form-cal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; flex-wrap:wrap; gap:8px; }
-.form-cal-actions { display:flex; gap:6px; }
+.form-cal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; flex-wrap:wrap; gap:6px; }
+.form-cal-actions { display:flex; gap:5px; }
 .fcal-action-btn {
-  padding:4px 12px; border-radius:6px; border:1px solid #ddd;
-  background:#f0f4f8; color:#1a3a5c; font-size:11px; font-weight:600;
+  padding:3px 9px; border-radius:5px; border:1px solid #ddd;
+  background:#f0f4f8; color:#1a3a5c; font-size:10px; font-weight:600;
   cursor:pointer; transition:background 0.15s;
 }
 .fcal-action-btn:hover:not(:disabled) { background:#e0e8f0; }
@@ -1225,21 +1194,21 @@ function selectAllMonth() {
 .fcal-action-btn.danger:hover:not(:disabled) { background:#fad4d1; }
 .fcal-action-btn:disabled { opacity:0.4; cursor:not-allowed; }
 
-.form-cal { background:#f8f9fc; border:1px solid #e2e6ef; border-radius:10px; padding:12px; }
-.form-cal-nav { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
-.form-cal-month-label { font-size:13px; font-weight:700; color:#1a3a5c; }
-.form-cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
-.form-cal-dow { font-size:10px; font-weight:700; color:#aaa; text-align:center; padding:3px 0 5px; }
+.form-cal { background:#f8f9fc; border:1px solid #e2e6ef; border-radius:8px; padding:8px 10px; max-width:280px; }
+.form-cal-nav { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+.form-cal-month-label { font-size:12px; font-weight:700; color:#1a3a5c; }
+.form-cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+.form-cal-dow { font-size:9px; font-weight:700; color:#aaa; text-align:center; padding:2px 0 3px; }
 .form-cal-day {
-  aspect-ratio:1; display:flex; align-items:center; justify-content:center;
-  font-size:12px; font-weight:500; border-radius:6px; cursor:pointer;
+  width:28px; height:28px; display:flex; align-items:center; justify-content:center;
+  font-size:11px; font-weight:500; border-radius:5px; cursor:pointer;
   color:#444; transition:background 0.12s, color 0.12s;
-  border:2px solid transparent;
+  border:1.5px solid transparent;
 }
 .form-cal-day:hover:not(.fcal-empty) { background:#e8f0fe; color:#1a3a5c; }
 .fcal-empty { cursor:default; }
 .fcal-today { border-color:#1a3a5c; color:#1a3a5c; font-weight:700; }
-.fcal-weekend { color:#888; }
+.fcal-weekend { color:#999; }
 .fcal-selected { background:#1a3a5c !important; color:#fff !important; border-color:#1a3a5c; font-weight:700; }
-.fcal-selected-count { margin-top:8px; font-size:11px; color:#1a6b3c; font-weight:600; text-align:center; }
+.fcal-selected-count { margin-top:6px; font-size:10px; color:#1a6b3c; font-weight:600; text-align:center; }
 </style>
