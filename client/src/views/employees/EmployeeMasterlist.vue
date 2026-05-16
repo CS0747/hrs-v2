@@ -170,7 +170,7 @@ function sortIcon(col) {
               <td><span class="emp-no">{{ emp.employeeNo }}</span></td>
               <td>
                 <div class="emp-name-cell">
-                  <div class="emp-avatar">{{ emp.firstName[0] }}{{ emp.lastName[0] }}</div>
+                  <div class="emp-avatar">{{ (emp.firstName || '')[0] }}{{ (emp.lastName || '')[0] }}</div>
                   <div>
                     <strong>{{ emp.lastName }}, {{ emp.firstName }} {{ emp.middleName ? emp.middleName[0] + '.' : '' }}</strong>
                     <div class="emp-contact">{{ emp.email }}</div>

@@ -215,6 +215,7 @@ VALUES
 ('KPFH-C015','Calimutan','Girby Joe','C.','Nurse I','Nursing','Casual',1),
 ('KPFH-C016','Causaren','Jennilyn','C.','Nurse I','Nursing','Casual',1),
 ('KPFH-C017','Costa','Honeylyn','C.','Nurse I','Nursing','Casual',1),
+    ('KPFH-C080','Abaredes','Malaya','A.','Nursing Attendant I','Nursing','Casual',1),
 ('KPFH-C018','David','Rachel Anne','A.','Nurse I','Nursing','Casual',1),
 ('KPFH-C019','Denauto','Christine Angela','C.','Nurse I','Nursing','Casual',1),
 ('KPFH-C020','Ebojo','Stephanie Claire','B.','Nurse I','Nursing','Casual',1),

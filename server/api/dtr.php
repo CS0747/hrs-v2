@@ -59,7 +59,7 @@ switch ($method) {
             } else {
                 $rows = $conn->query($sql)->fetch_all(MYSQLI_ASSOC);
             }
-            sendJson($rows);
+            sendJsonCamelCase($rows);
             break;
         }
 
@@ -69,7 +69,7 @@ switch ($method) {
             $stmt->bind_param('i', $id);
             $stmt->execute();
             $row = $stmt->get_result()->fetch_assoc();
-            $row ? sendJson($row) : sendError('Record not found', 404);
+            $row ? sendJsonCamelCase($row) : sendError('Record not found', 404);
         } else {
             $where  = ['1=1'];
             $params = [];
@@ -103,7 +103,7 @@ switch ($method) {
             } else {
                 $rows = $conn->query($sql)->fetch_all(MYSQLI_ASSOC);
             }
-            sendJson($rows);
+            sendJsonCamelCase($rows);
         }
         break;
 
@@ -168,7 +168,7 @@ switch ($method) {
         );
         $hstmt->execute();
 
-        sendJson(['id' => $new_id, 'message' => 'DTR record created'], 201);
+        sendJsonCamelCase(['id' => $new_id, 'message' => 'DTR record created'], 201);
         break;
 
     case 'PUT':
@@ -218,7 +218,7 @@ switch ($method) {
         );
         $hstmt->execute();
 
-        sendJson(['message' => 'DTR record updated']);
+        sendJsonCamelCase(['message' => 'DTR record updated']);
         break;
 
     case 'DELETE':
@@ -250,7 +250,7 @@ switch ($method) {
             $hstmt->execute();
         }
 
-        sendJson(['message' => 'DTR record deleted']);
+        sendJsonCamelCase(['message' => 'DTR record deleted']);
         break;
 
     default:

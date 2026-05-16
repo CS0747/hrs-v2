@@ -60,7 +60,39 @@ onMounted(async () => {
     isEdit.value = true
     loadingForm.value = true
     try {
-      // Fetch directly from API to guarantee fresh data regardless of store state
+      // Load employee for edit – first try the Pinia store, then fall back to API (camelCase)
+      const emp = store.getById(route.params.id)
+      if (emp) {
+        Object.assign(form.value, { ...emp })
+      } else {
+        const res = await fetch(`http://localhost/hrs-v2/server/api/employees.php?id=${route.params.id}`)
+        if (!res.ok) throw new Error('Failed to load employee')
+        const r = await res.json()
+        Object.assign(form.value, {
+          employeeNo:       r.employeeNo       ?? '',
+          lastName:         r.lastName         ?? '',
+          firstName:        r.firstName        ?? '',
+          middleName:       r.middleName       ?? '',
+          position:         r.position         ?? '',
+          designation:      r.designation      ?? '',
+          department:       r.department       ?? '',
+          employmentStatus: r.employmentStatus ?? 'Permanent',
+          dateHired:        r.dateHired        ?? '',
+          birthDate:        r.birthDate        ?? '',
+          gender:           r.gender           ?? 'Male',
+          civilStatus:      r.civilStatus      ?? 'Single',
+          address:          r.address          ?? '',
+          contactNo:        r.contactNo        ?? '',
+          email:            r.email            ?? '',
+          salary:           Number(r.salary)   || 0,
+          sgStep:           r.sgStep           ?? '',
+          tin:              r.tin              ?? '',
+          sss:              r.sss              ?? '',
+          philhealth:       r.philhealth       ?? '',
+          pagibig:          r.pagibig          ?? '',
+          active:           r.active == 1,
+        })
+      }
       const res = await fetch(`http://localhost/hrs-v2/server/api/employees.php?id=${route.params.id}`)
       if (!res.ok) throw new Error('Failed to load employee')
       const r = await res.json()

@@ -47,7 +47,7 @@ switch ($method) {
                     'dateApproved' => $row['date_approved'],
                     'remarks' => $row['remarks']
                 ];
-                sendJson($mapped);
+                sendJsonCamelCase($mapped);
             } else {
                 sendError('Record not found', 404);
             }
@@ -73,7 +73,7 @@ switch ($method) {
                     'remarks' => $row['remarks']
                 ];
             }, $rows);
-            sendJson($mapped);
+            sendJsonCamelCase($mapped);
         }
         break;
 
@@ -104,7 +104,7 @@ switch ($method) {
             $data['remarks']
         );
         $stmt->execute();
-        sendJson(['id' => $conn->insert_id, 'message' => 'Leave record created'], 201);
+        sendJsonCamelCase(['id' => $conn->insert_id, 'message' => 'Leave record created'], 201);
         break;
 
     case 'PUT':
@@ -137,7 +137,7 @@ switch ($method) {
             $id
         );
         $stmt->execute();
-        sendJson(['message' => 'Leave record updated']);
+        sendJsonCamelCase(['message' => 'Leave record updated']);
         break;
 
     case 'DELETE':
@@ -146,7 +146,7 @@ switch ($method) {
         $stmt = $conn->prepare('DELETE FROM leave_records WHERE id = ?');
         $stmt->bind_param('i', $id);
         $stmt->execute();
-        sendJson(['message' => 'Leave record deleted']);
+        sendJsonCamelCase(['message' => 'Leave record deleted']);
         break;
 
     default:

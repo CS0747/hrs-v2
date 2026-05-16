@@ -29,11 +29,11 @@ switch ($method) {
             $stmt->bind_param('i', $id);
             $stmt->execute();
             $row = $stmt->get_result()->fetch_assoc();
-            $row ? sendJson($row) : sendError('Employee not found', 404);
+            $row ? sendJsonCamelCase($row) : sendError('Employee not found', 404);
         } else {
             $result = $conn->query('SELECT * FROM employees ORDER BY last_name, first_name');
             $rows   = $result->fetch_all(MYSQLI_ASSOC);
-            sendJson($rows);
+            sendJsonCamelCase($rows);
         }
         break;
 

@@ -31,14 +31,14 @@ switch ($method) {
             $stmt->bind_param('i', $id);
             $stmt->execute();
             $row = $stmt->get_result()->fetch_assoc();
-            $row ? sendJson($row) : sendError('Department not found', 404);
+            $row ? sendJsonCamelCase($row) : sendError('Department not found', 404);
         } else {
             $all = isset($_GET['all']) && $_GET['all'] == '1';
             $sql = $all
                 ? 'SELECT * FROM departments ORDER BY name'
                 : 'SELECT * FROM departments WHERE active = 1 ORDER BY name';
             $rows = $conn->query($sql)->fetch_all(MYSQLI_ASSOC);
-            sendJson($rows);
+            sendJsonCamelCase($rows);
         }
         break;
 
@@ -62,7 +62,7 @@ switch ($method) {
             if ($conn->errno === 1062) sendError('Department already exists', 409);
             sendError('Insert failed: ' . $stmt->error, 500);
         }
-        sendJson(['id' => $conn->insert_id, 'message' => 'Department created'], 201);
+        sendJsonCamelCase(['id' => $conn->insert_id, 'message' => 'Department created'], 201);
         break;
 
     // PUT /departments.php?id=1 -> update
@@ -87,7 +87,7 @@ switch ($method) {
             if ($conn->errno === 1062) sendError('Department name already exists', 409);
             sendError('Update failed: ' . $stmt->error, 500);
         }
-        sendJson(['message' => 'Department updated']);
+        sendJsonCamelCase(['message' => 'Department updated']);
         break;
 
     // DELETE /departments.php?id=1 -> soft delete (set active=0)
@@ -98,7 +98,7 @@ switch ($method) {
         $stmt = $conn->prepare('UPDATE departments SET active = 0 WHERE id = ?');
         $stmt->bind_param('i', $id);
         $stmt->execute();
-        sendJson(['message' => 'Department deactivated']);
+        sendJsonCamelCase(['message' => 'Department deactivated']);
         break;
 
     default:

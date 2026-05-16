@@ -1,4 +1,24 @@
 <?php
+function snakeToCamel(string $s): string {
+    return lcfirst(str_replace('_', '', ucwords($s, '_')));
+}
+
+function convertKeysCamelCase(array $data): array {
+    $converted = [];
+    foreach ($data as $k => $v) {
+        $newKey = snakeToCamel($k);
+        $converted[$newKey] = is_array($v) ? convertKeysCamelCase($v) : $v;
+    }
+    return $converted;
+}
+
+function sendJsonCamelCase($data, $code = 200) {
+    if (is_array($data)) {
+        $data = convertKeysCamelCase($data);
+    }
+    sendJson($data, $code);
+}
+
 // Database configuration
 define('DB_HOST', 'localhost');
 define('DB_USER', 'root');
