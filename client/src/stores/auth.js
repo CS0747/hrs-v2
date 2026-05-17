@@ -1,8 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { API_ENDPOINTS } from '@/config/api'
 
-const AUTH_API = 'http://localhost/hrs-v2/server/api/auth.php'
-const AUDIT_API = 'http://localhost/hrs-v2/server/api/audit_logs.php'
+const AUTH_API = API_ENDPOINTS.AUTH
+const AUDIT_API = API_ENDPOINTS.AUDIT_LOGS
 
 export const useAuthStore = defineStore('auth', () => {
 
@@ -31,7 +32,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function fetchUsers() {
     try {
-      const res = await fetch(`${AUTH_API}?action=users`)
+      const res = await apiFetch(`${AUTH_API}?action=users`)
       const data = await res.json()
       if (Array.isArray(data.users)) {
         // Don't expose passwords — they're not returned by the API anyway

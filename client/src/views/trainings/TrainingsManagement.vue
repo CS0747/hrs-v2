@@ -56,6 +56,7 @@ const icons = {
   person:  '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>',
   check:   '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
   training:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82zM12 3L1 9l11 6 9-4.91V17h2V9L12 3z"/></svg>',
+  print:   '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>',
 }
 
 // ── Fetch trainings ───────────────────────────────────────────────────────────
@@ -229,15 +230,6 @@ async function saveParticipants() {
   finally { savingParts.value = false }
 }
 
-async function toggleAttended(p) {
-  await fetch(`${API}?participants=1&training_id=${selectedTraining.value.id}&participant_id=${p.id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ attended: p.attended ? 0 : 1 }),
-  })
-  await fetchParticipants(selectedTraining.value.id)
-}
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function statusClass(s) {
   return { Upcoming: 'st-blue', Ongoing: 'st-green', Completed: 'st-gray', Cancelled: 'st-red' }[s] || 'st-gray'
@@ -247,6 +239,239 @@ function catColor(c) {
 }
 function enrollPct(t) { return t.maxParticipants ? Math.min(100, Math.round(t.enrolled / t.maxParticipants * 100)) : 0 }
 function onEmpBlur() { setTimeout(() => { empDropOpen.value = false }, 180) }
+
+// ── PDF Export ────────────────────────────────────────────────────────────────
+async function exportAttendeesPDF() {
+  console.log('=== PDF Export Started ===')
+  
+  if (!selectedTraining.value || participants.value.length === 0) {
+    alert('No participants to export')
+    return
+  }
+
+  try {
+    // Import jsPDF - try multiple ways to get the constructor
+    const jsPDFModule = await import('jspdf')
+    let jsPDFConstructor = jsPDFModule.default || jsPDFModule.jsPDF || jsPDFModule
+    
+    // If it's still not right, try window.jspdf
+    if (typeof jsPDFConstructor !== 'function' && window.jspdf) {
+      jsPDFConstructor = window.jspdf.jsPDF
+    }
+    
+    console.log('jsPDF constructor type:', typeof jsPDFConstructor)
+    
+    // Import autotable plugin
+    await import('jspdf-autotable')
+    
+    // Small delay to ensure plugin is loaded
+    await new Promise(resolve => setTimeout(resolve, 100))
+    
+    console.log('Creating jsPDF instance...')
+    const doc = new jsPDFConstructor({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    })
+    console.log('jsPDF instance created')
+    console.log('doc.autoTable type:', typeof doc.autoTable)
+    console.log('doc keys:', Object.keys(doc).filter(k => k.includes('auto')))
+    
+    // Check if autoTable is available
+    if (typeof doc.autoTable !== 'function') {
+      // Try to manually attach it
+      if (window.jspdf && window.jspdf.autoTable) {
+        console.log('Trying to attach autoTable from window.jspdf')
+        doc.autoTable = window.jspdf.autoTable.bind(doc)
+      } else {
+        throw new Error('doc.autoTable is not available. Plugin may not have loaded.')
+      }
+    }
+    
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+
+    // Load GEAMH logo
+    console.log('Loading logo...')
+    const logoImg = new Image()
+    logoImg.crossOrigin = 'anonymous'
+    logoImg.src = '/GEAMH LOGO.png'
+    
+    await new Promise((resolve, reject) => {
+      logoImg.onload = () => {
+        console.log('Logo loaded successfully')
+        resolve()
+      }
+      logoImg.onerror = () => {
+        console.warn('Logo failed to load')
+        resolve() // Continue without logo
+      }
+      setTimeout(() => {
+        console.log('Logo load timeout')
+        resolve()
+      }, 2000) // Timeout after 2 seconds
+    })
+
+    // Add logo (centered at top)
+    const logoSize = 25
+    const logoX = (pageWidth - logoSize) / 2
+    if (logoImg.complete && logoImg.naturalHeight !== 0) {
+      try {
+        doc.addImage(logoImg, 'PNG', logoX, 10, logoSize, logoSize)
+        console.log('Logo added to PDF')
+      } catch (e) {
+        console.warn('Could not add logo:', e)
+      }
+    }
+
+    console.log('Adding header text...')
+    // Header text
+    doc.setFontSize(16)
+    doc.setFont('helvetica', 'bold')
+    doc.text('GENERAL EMILIO AGUINALDO MEMORIAL HOSPITAL', pageWidth / 2, 42, { align: 'center' })
+    
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Human Resource Information System', pageWidth / 2, 48, { align: 'center' })
+    
+    // Divider line
+    doc.setLineWidth(0.5)
+    doc.setDrawColor(26, 107, 60)
+    doc.line(15, 52, pageWidth - 15, 52)
+
+    // Document title
+    doc.setFontSize(14)
+    doc.setFont('helvetica', 'bold')
+    doc.text('TRAINING ATTENDEES LIST', pageWidth / 2, 60, { align: 'center' })
+
+    console.log('Adding training details box...')
+    // Training details box
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'normal')
+    doc.setFillColor(248, 249, 250)
+    doc.rect(15, 65, pageWidth - 30, 28, 'F')
+    doc.setDrawColor(233, 236, 239)
+    doc.rect(15, 65, pageWidth - 30, 28, 'S')
+
+    // Left column
+    doc.setFont('helvetica', 'bold')
+    doc.text('Training Title:', 20, 72)
+    doc.setFont('helvetica', 'normal')
+    const titleText = doc.splitTextToSize(selectedTraining.value.title, 60)
+    doc.text(titleText, 50, 72)
+
+    doc.setFont('helvetica', 'bold')
+    doc.text('Category:', 20, 78)
+    doc.setFont('helvetica', 'normal')
+    doc.text(selectedTraining.value.category, 50, 78)
+
+    doc.setFont('helvetica', 'bold')
+    doc.text('Instructor:', 20, 84)
+    doc.setFont('helvetica', 'normal')
+    doc.text(selectedTraining.value.instructor || 'N/A', 50, 84)
+
+    // Right column
+    doc.setFont('helvetica', 'bold')
+    doc.text('Date:', 120, 72)
+    doc.setFont('helvetica', 'normal')
+    const dateRange = selectedTraining.value.dateFrom + 
+      (selectedTraining.value.dateTo && selectedTraining.value.dateTo !== selectedTraining.value.dateFrom 
+        ? ' to ' + selectedTraining.value.dateTo 
+        : '')
+    doc.text(dateRange, 135, 72)
+
+    doc.setFont('helvetica', 'bold')
+    doc.text('Venue:', 120, 78)
+    doc.setFont('helvetica', 'normal')
+    doc.text(selectedTraining.value.venue || 'N/A', 135, 78)
+
+    doc.setFont('helvetica', 'bold')
+    doc.text('Total Participants:', 120, 84)
+    doc.setFont('helvetica', 'normal')
+    doc.text(`${participants.value.length} / ${selectedTraining.value.maxParticipants}`, 160, 84)
+
+    console.log('Preparing table data...')
+    // Attendees table (removed attendance column)
+    const tableData = participants.value.map((p, index) => [
+      index + 1,
+      `${p.last_name}, ${p.first_name}`,
+      p.position || '—',
+      p.department || '—',
+    ])
+    console.log('Table data prepared, rows:', tableData.length)
+
+    console.log('Calling doc.autoTable...')
+    doc.autoTable({
+      startY: 98,
+      head: [['No.', 'Name', 'Position', 'Department']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [26, 107, 60],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 10,
+        halign: 'center',
+      },
+      bodyStyles: {
+        fontSize: 9,
+        cellPadding: 3,
+      },
+      columnStyles: {
+        0: { halign: 'center', cellWidth: 15 },
+        1: { cellWidth: 70 },
+        2: { cellWidth: 50 },
+        3: { cellWidth: 50 },
+      },
+      alternateRowStyles: {
+        fillColor: [248, 249, 250],
+      },
+      margin: { left: 15, right: 15 },
+    })
+    console.log('Table added successfully')
+
+    console.log('Adding footer...')
+    // Footer
+    const finalY = doc.lastAutoTable.finalY || 98
+    const footerY = pageHeight - 20
+
+    if (finalY < footerY - 10) {
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'italic')
+      doc.setTextColor(128, 128, 128)
+      doc.text('Generated on: ' + new Date().toLocaleString('en-PH', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }), pageWidth / 2, footerY, { align: 'center' })
+      
+      doc.text('GEAMH HRIS - Training Management System', pageWidth / 2, footerY + 4, { align: 'center' })
+    }
+
+    console.log('Adding page numbers...')
+    // Page numbers
+    const pageCount = doc.internal.getNumberOfPages()
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i)
+      doc.setFontSize(8)
+      doc.setTextColor(128, 128, 128)
+      doc.text(`Page ${i} of ${pageCount}`, pageWidth - 20, pageHeight - 10, { align: 'right' })
+    }
+
+    // Save PDF
+    const fileName = `Training_Attendees_${selectedTraining.value.title.replace(/[^a-z0-9]/gi, '_')}_${new Date().toISOString().split('T')[0]}.pdf`
+    console.log('Saving PDF as:', fileName)
+    doc.save(fileName)
+    
+    console.log('=== PDF generated successfully ===')
+    alert('PDF downloaded successfully!')
+  } catch (error) {
+    console.error('Error generating PDF:', error)
+    alert('Failed to generate PDF: ' + error.message)
+  }
+}
 </script>
 
 <template>
@@ -343,15 +568,20 @@ function onEmpBlur() { setTimeout(() => { empDropOpen.value = false }, 180) }
                 {{ selectedTraining.category }}
               </span>
             </div>
-            <button class="btn btn-primary sm" @click="openAddParticipant">
-              <span class="icon-svg" v-html="icons.person"></span> Add Participants
-            </button>
+            <div class="panel-header-actions">
+              <button class="btn btn-secondary sm" @click="exportAttendeesPDF" title="Export to PDF">
+                <span class="icon-svg" v-html="icons.print"></span> Export PDF
+              </button>
+              <button class="btn btn-primary sm" @click="openAddParticipant">
+                <span class="icon-svg" v-html="icons.person"></span> Add Participants
+              </button>
+            </div>
           </div>
 
           <div class="panel-stats">
             <div class="pstat"><strong>{{ selectedTraining.enrolled }}</strong><span>Enrolled</span></div>
-            <div class="pstat"><strong>{{ participants.filter(p => p.attended).length }}</strong><span>Attended</span></div>
-            <div class="pstat"><strong>{{ selectedTraining.maxParticipants }}</strong><span>Max</span></div>
+            <div class="pstat"><strong>{{ selectedTraining.maxParticipants }}</strong><span>Max Capacity</span></div>
+            <div class="pstat"><strong>{{ selectedTraining.duration }}</strong><span>Days</span></div>
           </div>
 
           <div v-if="loadingParts" class="panel-loading">Loading participants...</div>
@@ -648,6 +878,7 @@ function onEmpBlur() { setTimeout(() => { empDropOpen.value = false }, 180) }
 .panel-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; flex:1; color:#aaa; font-size:14px; padding:40px; text-align:center; }
 .panel-header { padding:16px 18px; border-bottom:1px solid #f0f4f8; display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
 .panel-header h3 { margin:0 0 6px; font-size:15px; color:#1a1a2e; line-height:1.3; }
+.panel-header-actions { display:flex; align-items:center; gap:8px; flex-shrink:0; }
 .panel-stats { display:flex; gap:0; border-bottom:1px solid #f0f4f8; }
 .pstat { flex:1; padding:12px; text-align:center; border-right:1px solid #f0f4f8; }
 .pstat:last-child { border-right:none; }
@@ -662,9 +893,6 @@ function onEmpBlur() { setTimeout(() => { empDropOpen.value = false }, 180) }
 .part-info { flex:1; display:flex; flex-direction:column; }
 .part-info strong { font-size:13px; color:#1a1a2e; }
 .part-info span { font-size:11px; color:#888; }
-.attend-btn { padding:4px 10px; border-radius:8px; border:1.5px solid #ddd; background:#f9fafb; color:#888; font-size:11px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:4px; transition:all 0.15s; white-space:nowrap; }
-.attend-btn.attended { background:#eafaf1; border-color:#27ae60; color:#27ae60; }
-.attend-btn:hover { border-color:#1a3a5c; color:#1a3a5c; }
 
 /* Modals */
 .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:1000; backdrop-filter:blur(2px); }

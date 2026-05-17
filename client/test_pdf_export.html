@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test PDF Export</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.3/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+  <h1>Test PDF Export</h1>
+  <button onclick="generatePDF()">Generate Test PDF</button>
+  
+  <script>
+    function generatePDF() {
+      try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4'
+        });
+        
+        const pageWidth = doc.internal.pageSize.getWidth();
+        
+        // Header
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text('GENERAL EMILIO AGUINALDO MEMORIAL HOSPITAL', pageWidth / 2, 20, { align: 'center' });
+        
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Human Resource Information System', pageWidth / 2, 26, { align: 'center' });
+        
+        // Divider
+        doc.setLineWidth(0.5);
+        doc.setDrawColor(26, 107, 60);
+        doc.line(15, 30, pageWidth - 15, 30);
+        
+        // Title
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('TRAINING ATTENDEES LIST - TEST', pageWidth / 2, 38, { align: 'center' });
+        
+        // Test table
+        const tableData = [
+          [1, 'Dela Cruz, Juan', 'Nurse II', 'Nursing', 'Yes'],
+          [2, 'Santos, Maria', 'Nurse I', 'Nursing', 'Yes'],
+          [3, 'Reyes, Anna', 'Med Tech', 'Laboratory', 'No'],
+        ];
+        
+        doc.autoTable({
+          startY: 45,
+          head: [['No.', 'Name', 'Position', 'Department', 'Attended']],
+          body: tableData,
+          theme: 'grid',
+          headStyles: {
+            fillColor: [26, 107, 60],
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            fontSize: 10,
+            halign: 'center',
+          },
+          bodyStyles: {
+            fontSize: 9,
+            cellPadding: 3,
+          },
+          columnStyles: {
+            0: { halign: 'center', cellWidth: 15 },
+            1: { cellWidth: 60 },
+            2: { cellWidth: 45 },
+            3: { cellWidth: 45 },
+            4: { halign: 'center', cellWidth: 25 },
+          },
+          alternateRowStyles: {
+            fillColor: [248, 249, 250],
+          },
+          margin: { left: 15, right: 15 },
+        });
+        
+        // Save
+        doc.save('Test_Training_Attendees.pdf');
+        alert('PDF generated successfully!');
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Error generating PDF: ' + error.message);
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,8 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useVersionHistory } from '@/composables/useVersionHistory'
+import { API_ENDPOINTS } from '@/config/api'
 
-const API_URL = 'http://localhost/hrs-v2/server/api/tracking.php'
+const API_URL = API_ENDPOINTS.TRACKING
 
 export const useTrackingStore = defineStore('tracking', () => {
     const trackingRecords = ref([])
@@ -21,17 +22,17 @@ export const useTrackingStore = defineStore('tracking', () => {
             const data = await response.json()
 
             trackingRecords.value = data.map(record => ({
-                id:            record.id,
-                docType:       record.doc_type,
-                docNo:         record.doc_no,
-                from:          record.from_office,
-                to:            record.to_office,
-                direction:     record.direction ?? 'incoming',
+                id: record.id,
+                docType: record.doc_type,
+                docNo: record.doc_no,
+                from: record.from_office,
+                to: record.to_office,
+                direction: record.direction ?? 'incoming',
                 dateForwarded: record.date_forwarded || '',
-                dateReceived:  record.date_received  || '',
-                receivedBy:    record.received_by    || '',
-                status:        record.status,
-                remarks:       record.remarks        || '',
+                dateReceived: record.date_received || '',
+                receivedBy: record.received_by || '',
+                status: record.status,
+                remarks: record.remarks || '',
             }))
         } catch (err) {
             error.value = err.message
@@ -43,16 +44,16 @@ export const useTrackingStore = defineStore('tracking', () => {
 
     function toPayload(record) {
         return {
-            doc_type:       record.docType,
-            doc_no:         record.docNo,
-            from_office:    record.from,
-            to_office:      record.to,
-            direction:      record.direction ?? 'incoming',
+            doc_type: record.docType,
+            doc_no: record.docNo,
+            from_office: record.from,
+            to_office: record.to,
+            direction: record.direction ?? 'incoming',
             date_forwarded: record.dateForwarded || null,
-            date_received:  record.dateReceived  || null,
-            received_by:    record.receivedBy    || '',
-            status:         record.status        || 'Pending',
-            remarks:        record.remarks       || '',
+            date_received: record.dateReceived || null,
+            received_by: record.receivedBy || '',
+            status: record.status || 'Pending',
+            remarks: record.remarks || '',
         }
     }
 

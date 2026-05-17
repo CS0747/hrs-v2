@@ -2,6 +2,7 @@
 import { useRoute, useRouter } from "vue-router"
 import { computed, ref, onMounted, onUnmounted } from "vue"
 import { useAuthStore } from "@/stores/auth"
+import { useLiveNotifications } from "@/composables/useLiveNotifications"
 import AppModal from "@/components/AppModal.vue"
 
 const route = useRoute()
@@ -9,6 +10,89 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const emit = defineEmits(["toggle-sidebar"])
+
+// Real-time notifications
+const {
+  allNotifications,
+  unreadNotifications,
+  unreadCount,
+  markAsRead,
+  markAllAsRead,
+  deleteNotification,
+} = useLiveNotifications({ pollInterval: 5000, showToasts: true })
+
+const showNotificationPanel = ref(false)
+const notificationPanelRef = ref(null)
+
+function toggleNotificationPanel() {
+  showNotificationPanel.value = !showNotificationPanel.value
+}
+
+function handleNotificationClickOutside(e) {
+  if (notificationPanelRef.value && !notificationPanelRef.value.contains(e.target)) {
+    showNotificationPanel.value = false
+  }
+}
+
+async function handleNotificationClick(notification) {
+  // Mark as read
+  if (notification.is_read === 0) {
+    await markAsRead(notification.id)
+  }
+  
+  // Navigate to link if available
+  if (notification.link) {
+    router.push(notification.link)
+    showNotificationPanel.value = false
+  }
+}
+
+async function handleMarkAllRead() {
+  await markAllAsRead()
+}
+
+function formatTimeAgo(dateStr) {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const seconds = Math.floor((now - date) / 1000)
+  
+  if (seconds < 60) return 'Just now'
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`
+  return date.toLocaleDateString()
+}
+
+function getNotifIcon(type) {
+  const icons = {
+    password_reset: '<path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/>',
+    leave_request: '<path d="M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V8h16v13z"/>',
+    travel_order: '<path d="M21 5h-9.17C6.41 5 2 9.41 2 14.83V15h20V6c0-.55-.45-1-1-1m-8 6H5.01c1.34-2.38 3.89-4 6.82-4H13zm-8 8h16c.55 0 1-.45 1-1v-2H2c0 1.65 1.35 3 3 3"/>',
+    employee_added: '<path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>',
+    training_added: '<path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82zM12 3L1 9l11 6 9-4.91V17h2V9L12 3z"/>',
+    audit_log: '<path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zm-2 9H7v-2h4v2zm4-4H7v-2h8v2zm0-4H7V8h8v2z"/>',
+  }
+  return icons[type] || icons.audit_log
+}
+
+function getNotifIconStyle(type) {
+  const styles = {
+    password_reset: 'background: #ebf5fb; color: #2980b9;',
+    leave_request: 'background: #fff8e1; color: #f59e0b;',
+    travel_order: 'background: #fef3e2; color: #e67e22;',
+    employee_added: 'background: #eafaf1; color: #10b981;',
+    training_added: 'background: #e8f5ee; color: #1a6b3c;',
+    audit_log: 'background: #f3f4f6; color: #6b7280;',
+  }
+  return styles[type] || styles.audit_log
+}
+
+onMounted(() => {
+  document.addEventListener("mousedown", handleNotificationClickOutside)
+})
+onUnmounted(() => {
+  document.removeEventListener("mousedown", handleNotificationClickOutside)
+})
 
 const pageTitle = computed(() => {
   const map = {
@@ -48,9 +132,6 @@ onUnmounted(() => clearInterval(clockInterval))
 const dropdownOpen = ref(false)
 const dropdownRef = ref(null)
 const showProfileModal = ref(false)
-const showDeletePrompt = ref(false)
-const deleteConfirmText = ref("")
-const deleteError = ref("")
 
 function toggleDropdown() { dropdownOpen.value = !dropdownOpen.value }
 
@@ -80,8 +161,6 @@ function openProfile() {
     name: auth.currentUser?.name || "",
     username: auth.currentUser?.username || "",
     role: auth.currentUser?.role || "",
-    newPassword: "",
-    confirmPassword: "",
   }
   profilePicPreview.value = auth.currentUser?.avatar || null
   profileError.value = ""
@@ -90,7 +169,7 @@ function openProfile() {
   setTimeout(() => { showProfileModal.value = true }, 10)
 }
 
-const profileForm = ref({ name: "", username: "", role: "", newPassword: "", confirmPassword: "" })
+const profileForm = ref({ name: "", username: "", role: "" })
 const profilePicPreview = ref(null)
 const profileError = ref("")
 const profileSuccess = ref("")
@@ -108,52 +187,17 @@ function saveProfile() {
   profileError.value = ""
   if (!profileForm.value.name.trim()) { profileError.value = "Name is required."; return }
   if (!profileForm.value.username.trim()) { profileError.value = "Username is required."; return }
-  if (profileForm.value.newPassword && profileForm.value.newPassword.length < 6) {
-    profileError.value = "Password must be at least 6 characters."; return
-  }
-  if (profileForm.value.newPassword && profileForm.value.newPassword !== profileForm.value.confirmPassword) {
-    profileError.value = "Passwords do not match."; return
-  }
+  
   const updateData = {
     name:     profileForm.value.name,
     username: profileForm.value.username,
     avatar:   profilePicPreview.value,
   }
-  if (profileForm.value.newPassword) updateData.password = profileForm.value.newPassword
   if (auth.userRole === 'DIOS') updateData.role = profileForm.value.role
 
   auth.updateProfile(updateData)
   profileSuccess.value = "Profile updated successfully!"
   setTimeout(() => { showProfileModal.value = false }, 1200)
-}
-
-function openDeletePrompt() {
-  dropdownOpen.value = false
-  deleteConfirmText.value = ""
-  deleteError.value = ""
-  showDeletePrompt.value = true
-}
-
-function cancelDelete() {
-  showDeletePrompt.value = false
-  deleteConfirmText.value = ""
-  deleteError.value = ""
-}
-
-function confirmDelete() {
-  if (deleteConfirmText.value !== "DELETE") {
-    deleteError.value = "Please type DELETE exactly to confirm."
-    return
-  }
-  const username = auth.currentUser?.username
-  if (username) {
-    auth.users = auth.users.filter(u => u.username !== username)
-    localStorage.setItem("hris_users", JSON.stringify(auth.users))
-    auth.addLog("Account Deleted", "Auth", `Account ${username} was deleted.`)
-  }
-  auth.logout()
-  showDeletePrompt.value = false
-  router.push("/login")
 }
 
 const initials = computed(() => {
@@ -177,6 +221,67 @@ const initials = computed(() => {
     <div class="header-right">
       <span class="date-display">{{ today }}</span>
       <span class="time-display">{{ currentTime }}</span>
+      
+      <!-- Notification Bell -->
+      <div class="notification-bell-wrapper" ref="notificationPanelRef">
+        <button class="notification-bell" @click="toggleNotificationPanel" :class="{ active: showNotificationPanel }">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+            <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/>
+          </svg>
+          <span v-if="unreadCount > 0" class="notification-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+        </button>
+
+        <transition name="dropdown">
+          <div v-if="showNotificationPanel" class="notification-panel">
+            <div class="notification-panel-header">
+              <h3>Notifications</h3>
+              <div class="header-actions">
+                <span class="unread-count">{{ unreadCount }} unread</span>
+                <button v-if="unreadCount > 0" class="mark-all-btn" @click="handleMarkAllRead" title="Mark all as read">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                    <path d="M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41zM.41 13.41L6 19l1.41-1.41L1.83 12 .41 13.41z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div class="notification-panel-body">
+              <div v-if="allNotifications.length === 0" class="no-notifications">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="32" height="32" style="color: #10b981;">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+                <p>No notifications</p>
+                <span>You're all caught up!</span>
+              </div>
+              
+              <div v-else class="notifications-list">
+                <div
+                  v-for="notif in allNotifications.slice(0, 10)"
+                  :key="notif.id"
+                  class="notification-item"
+                  :class="{ unread: notif.is_read === 0 }"
+                  @click="handleNotificationClick(notif)"
+                >
+                  <div class="notif-icon" :style="getNotifIconStyle(notif.type)">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" v-html="getNotifIcon(notif.type)"></svg>
+                  </div>
+                  <div class="notif-content">
+                    <div class="notif-title">{{ notif.title }}</div>
+                    <div class="notif-message">{{ notif.message }}</div>
+                    <div class="notif-time">{{ formatTimeAgo(notif.created_at) }}</div>
+                  </div>
+                  <div v-if="notif.is_read === 0" class="unread-dot"></div>
+                  <button class="notif-delete" @click.stop="deleteNotification(notif.id)" title="Delete">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                      <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </transition>
+      </div>
+      
       <div class="profile-wrapper" ref="dropdownRef">
         <button class="profile-btn" @click="toggleDropdown" :class="{ active: dropdownOpen }">
           <div class="profile-avatar">
@@ -212,10 +317,6 @@ const initials = computed(() => {
             <button class="dropdown-item logout-item" @click="logout">
               <span class="di-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg></span>
               Log Out
-            </button>
-            <button v-if="auth.userRole !== 'DIOS' && !auth.isSuperAdmin" class="dropdown-item delete-item" @click="openDeletePrompt">
-              <span class="di-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></span>
-              Delete Account
             </button>
           </div>
         </transition>
@@ -263,14 +364,6 @@ const initials = computed(() => {
               <!-- Super Admin / Admin: read-only role display -->
               <input v-else :value="profileForm.role" readonly class="input-readonly" />
             </div>
-            <div class="form-group">
-              <label>New Password <span class="optional">(leave blank to keep current)</span></label>
-              <input v-model="profileForm.newPassword" type="password" placeholder="New password" />
-            </div>
-            <div class="form-group">
-              <label>Confirm Password</label>
-              <input v-model="profileForm.confirmPassword" type="password" placeholder="Confirm new password" />
-            </div>
           </div>
 
           <div v-if="profileError" class="form-error">{{ profileError }}</div>
@@ -279,33 +372,6 @@ const initials = computed(() => {
         <div class="modal-footer">
           <button class="btn-cancel" @click="showProfileModal = false">Cancel</button>
           <button class="btn-save" @click="saveProfile">Save Changes</button>
-        </div>
-      </div>
-    </div>
-  </teleport>
-
-  <!-- Delete Account Prompt -->
-  <teleport to="body">
-    <div v-if="showDeletePrompt" class="modal-overlay" @click.self="cancelDelete">
-      <div class="delete-modal">
-        <div class="delete-header">
-          <svg viewBox="0 0 24 24" fill="currentColor" width="26" height="26" style="color:#c0392b"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
-          <h3>Delete Account</h3>
-        </div>
-        <div class="delete-body">
-          <p>You are about to permanently delete:</p>
-          <div class="delete-info">
-            <strong>{{ auth.currentUser?.name }}</strong>
-            <span>@{{ auth.currentUser?.username }} &middot; {{ auth.currentUser?.role }}</span>
-          </div>
-          <p class="delete-warn">This action <strong>cannot be undone</strong>. You will be logged out immediately.</p>
-          <label class="delete-label">Type <strong>DELETE</strong> to confirm:</label>
-          <input v-model="deleteConfirmText" class="delete-input" placeholder="Type DELETE here" @keyup.enter="confirmDelete" />
-          <div v-if="deleteError" class="delete-error">{{ deleteError }}</div>
-        </div>
-        <div class="delete-footer">
-          <button class="btn-cancel" @click="cancelDelete">Cancel</button>
-          <button class="btn-delete" :disabled="deleteConfirmText !== 'DELETE'" @click="confirmDelete">Yes, Delete Account</button>
         </div>
       </div>
     </div>
@@ -339,6 +405,83 @@ const initials = computed(() => {
 .header-right { display:flex; align-items:center; gap:16px; }
 .date-display { font-size:12px; color:#555; }
 .time-display { font-size:12px; color:#1a6b3c; font-weight:700; font-variant-numeric: tabular-nums; }
+
+/* Notification Bell */
+.notification-bell-wrapper { position:relative; }
+.notification-bell {
+  display:flex; align-items:center; justify-content:center;
+  width:38px; height:38px; border-radius:50%;
+  background:#f0f9f4; border:1.5px solid #b7dfc8;
+  cursor:pointer; transition:all 0.2s; position:relative;
+}
+.notification-bell:hover, .notification-bell.active { background:#e8f5ee; border-color:#1a6b3c; }
+.notification-bell svg { fill:#1a6b3c; }
+.notification-badge {
+  position:absolute; top:-4px; right:-4px;
+  background:#e74c3c; color:#fff;
+  font-size:10px; font-weight:800; border-radius:10px;
+  padding:2px 6px; min-width:18px; text-align:center;
+  box-shadow:0 2px 6px rgba(231,76,60,0.4);
+}
+.notification-panel {
+  position:absolute; top:calc(100% + 8px); right:0;
+  background:#fff; border-radius:12px; width:340px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.15); border:1px solid #e8f5ee;
+  overflow:hidden; z-index:200;
+}
+.notification-panel-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 16px; background:#f8f9fa; border-bottom:1px solid #e9ecef;
+}
+.notification-panel-header h3 { margin:0; font-size:14px; font-weight:700; color:#1a3a5c; }
+.header-actions { display:flex; align-items:center; gap:8px; }
+.unread-count {
+  font-size:11px; font-weight:600; color:#888;
+}
+.mark-all-btn {
+  background:none; border:none; padding:4px; cursor:pointer;
+  color:#1a6b3c; display:flex; align-items:center; border-radius:4px;
+  transition:background 0.15s;
+}
+.mark-all-btn:hover { background:#e8f5ee; }
+.notification-panel-body { padding:0; max-height:500px; overflow-y:auto; }
+.notifications-list { display:flex; flex-direction:column; }
+.notification-item {
+  display:flex; align-items:flex-start; gap:12px;
+  padding:12px 16px; text-decoration:none;
+  transition:background 0.15s; cursor:pointer;
+  border-bottom:1px solid #f0f4f8; position:relative;
+}
+.notification-item:hover { background:#f8f9fa; }
+.notification-item.unread { background:#f0f9ff; }
+.notification-item.unread:hover { background:#e0f2fe; }
+.notif-icon {
+  width:36px; height:36px; border-radius:8px;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+.notif-content { flex:1; min-width:0; }
+.notif-title { font-size:13px; font-weight:600; color:#1a3a5c; margin-bottom:2px; }
+.notif-message { font-size:12px; color:#555; margin-bottom:4px; line-height:1.4; }
+.notif-time { font-size:10px; color:#aaa; }
+.unread-dot {
+  width:8px; height:8px; border-radius:50%;
+  background:#3b82f6; flex-shrink:0; margin-top:4px;
+}
+.notif-delete {
+  background:none; border:none; padding:4px; cursor:pointer;
+  color:#aaa; display:flex; align-items:center; border-radius:4px;
+  transition:all 0.15s; opacity:0; flex-shrink:0;
+}
+.notification-item:hover .notif-delete { opacity:1; }
+.notif-delete:hover { background:#fdecea; color:#e74c3c; }
+.no-notifications {
+  display:flex; flex-direction:column; align-items:center;
+  padding:40px 16px; text-align:center;
+}
+.no-notifications p { margin:8px 0 4px; font-size:14px; font-weight:600; color:#1a3a5c; }
+.no-notifications span { font-size:12px; color:#888; }
+
 .profile-wrapper { position:relative; }
 .profile-btn {
   display:flex; align-items:center; gap:10px;
@@ -389,9 +532,6 @@ const initials = computed(() => {
 .logout-item { color:#e67e22; }
 .logout-item:hover { background:#fef3e2; }
 .logout-item .di-icon svg { fill:#e67e22; }
-.delete-item { color:#c0392b; }
-.delete-item:hover { background:#fdecea; }
-.delete-item .di-icon svg { fill:#c0392b; }
 .dropdown-enter-active,.dropdown-leave-active { transition:all 0.15s ease; }
 .dropdown-enter-from,.dropdown-leave-to { opacity:0; transform:translateY(-6px); }
 /* Modal overlay */
@@ -446,37 +586,6 @@ const initials = computed(() => {
   display:flex; justify-content:flex-end; gap:10px;
   padding:14px 20px; border-top:1px solid #f0f4f8; background:#fafafa;
 }
-/* Delete modal */
-.delete-modal {
-  background:#fff; border-radius:14px; width:420px; max-width:95vw;
-  box-shadow:0 20px 60px rgba(0,0,0,0.3); overflow:hidden;
-  animation: profileFadeDown 0.35s ease both;
-}
-.delete-header {
-  display:flex; align-items:center; gap:10px;
-  padding:18px 22px; background:#fdecea; border-bottom:1px solid #f5b7b1;
-}
-.delete-header h3 { margin:0; color:#c0392b; font-size:17px; }
-.delete-body { padding:20px 22px; }
-.delete-body p { font-size:13px; color:#555; margin:0 0 10px; }
-.delete-info {
-  background:#f9fafb; border:1px solid #e0e0e0; border-radius:8px;
-  padding:10px 14px; margin-bottom:12px; display:flex; flex-direction:column; gap:2px;
-}
-.delete-info strong { font-size:14px; color:#1a6b3c; }
-.delete-info span { font-size:12px; color:#888; }
-.delete-warn { background:#fff8e1; border:1px solid #ffe082; border-radius:6px; padding:8px 12px; font-size:12px; color:#7d5a00; }
-.delete-label { display:block; font-size:12px; font-weight:600; color:#555; margin:14px 0 6px; }
-.delete-input {
-  width:100%; padding:10px 12px; border:2px solid #ddd; border-radius:8px;
-  font-size:14px; font-family:monospace; letter-spacing:2px; outline:none; transition:border-color 0.2s;
-}
-.delete-input:focus { border-color:#c0392b; }
-.delete-error { color:#c0392b; font-size:12px; margin-top:6px; font-weight:600; }
-.delete-footer {
-  display:flex; justify-content:flex-end; gap:10px;
-  padding:14px 22px; border-top:1px solid #f0f4f8; background:#fafafa;
-}
 .btn-cancel {
   padding:9px 20px; border-radius:8px; border:1px solid #ddd;
   background:#fff; cursor:pointer; font-size:13px; font-weight:600; color:#555;
@@ -487,12 +596,6 @@ const initials = computed(() => {
   background:#1a6b3c; color:#fff; cursor:pointer; font-size:13px; font-weight:600;
 }
 .btn-save:hover { background:#27ae60; }
-.btn-delete {
-  padding:9px 20px; border-radius:8px; border:none;
-  background:#c0392b; color:#fff; cursor:pointer; font-size:13px; font-weight:600;
-}
-.btn-delete:hover:not(:disabled) { background:#a93226; }
-.btn-delete:disabled { opacity:0.4; cursor:not-allowed; }
 
 @keyframes profileFadeDown {
   from {

@@ -1,8 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useVersionHistory } from '@/composables/useVersionHistory'
+import { API_ENDPOINTS } from '@/config/api'
 
-const API = 'http://localhost/hrs-v2/server/api/schedule.php'
+const API = API_ENDPOINTS.SCHEDULE
 
 export const useScheduleStore = defineStore('schedule', () => {
   const schedules = ref([])

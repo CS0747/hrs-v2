@@ -36,11 +36,12 @@ const ALL_DAYS     = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const MAX_WORK_DAYS = 6
 
 const SHIFT_TIMES = {
-  Morning:   '07:00 AM - 03:00 PM',
-  Afternoon: '03:00 PM - 11:00 PM',
-  Night:     '11:00 PM - 07:00 AM',
-  Split:     '06:00 AM - 10:00 AM / 02:00 PM - 06:00 PM',
-  Flexible:  'Flexible',
+  Morning:   { start: '07:00', end: '15:00', display: '07:00 AM - 03:00 PM' },
+  Afternoon: { start: '15:00', end: '23:00', display: '03:00 PM - 11:00 PM' },
+  Night:     { start: '23:00', end: '07:00', display: '11:00 PM - 07:00 AM' },
+  Split:     { start: '06:00', end: '18:00', display: '06:00 AM - 10:00 AM / 02:00 PM - 06:00 PM' },
+  Flexible:  { start: '08:00', end: '17:00', display: 'Flexible' },
+  Custom:    { start: '08:00', end: '17:00', display: 'Custom Time' },
 }
 
 // ── Form state ───────────────────────────────────────────────────────────────
@@ -52,6 +53,10 @@ function blankForm() {
     department:    '',
     shift:         'Morning',
     shiftTime:     '07:00 AM - 03:00 PM',
+    startTime:     '07:00',
+    endTime:       '15:00',
+    startPeriod:   'AM',
+    endPeriod:     'PM',
     days:          [...defaultDays],
     effectiveDate: '',
     endDate:       '',
@@ -122,7 +127,41 @@ function isDayDisabled(day) {
 }
 
 function onShiftChange() {
-  form.value.shiftTime = SHIFT_TIMES[form.value.shift] || ''
+  const shiftData = SHIFT_TIMES[form.value.shift] || SHIFT_TIMES.Flexible
+  form.value.shiftTime = shiftData.display
+  form.value.startTime = shiftData.start
+  form.value.endTime = shiftData.end
+  
+  // Parse start/end times to set AM/PM
+  const [startHour] = shiftData.start.split(':').map(Number)
+  const [endHour] = shiftData.end.split(':').map(Number)
+  
+  form.value.startPeriod = startHour < 12 ? 'AM' : 'PM'
+  form.value.endPeriod = endHour < 12 ? 'AM' : 'PM'
+}
+
+// ── Time picker helpers ──────────────────────────────────────────────────────
+function updateShiftTime() {
+  const start = formatTime(form.value.startTime, form.value.startPeriod)
+  const end = formatTime(form.value.endTime, form.value.endPeriod)
+  form.value.shiftTime = `${start} - ${end}`
+}
+
+function formatTime(time24, period) {
+  if (!time24) return '00:00 AM'
+  const [hour, minute] = time24.split(':').map(Number)
+  const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
+  return `${String(hour12).padStart(2, '0')}:${String(minute).padStart(2, '0')} ${period}`
+}
+
+function toggleStartPeriod() {
+  form.value.startPeriod = form.value.startPeriod === 'AM' ? 'PM' : 'AM'
+  updateShiftTime()
+}
+
+function toggleEndPeriod() {
+  form.value.endPeriod = form.value.endPeriod === 'AM' ? 'PM' : 'AM'
+  updateShiftTime()
 }
 
 // ── Open modals ──────────────────────────────────────────────────────────────
@@ -136,12 +175,49 @@ function openAdd() {
 
 function openEdit(s) {
   editId.value = s.id
+  
+  // Parse existing shift time if available
+  let startTime = '07:00', endTime = '15:00', startPeriod = 'AM', endPeriod = 'PM'
+  
+  if (s.shiftTime && s.shiftTime.includes('-')) {
+    const [start, end] = s.shiftTime.split('-').map(t => t.trim())
+    const parseTime = (timeStr) => {
+      const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i)
+      if (match) {
+        let hour = parseInt(match[1])
+        const minute = match[2]
+        const period = match[3].toUpperCase()
+        
+        if (period === 'PM' && hour !== 12) hour += 12
+        if (period === 'AM' && hour === 12) hour = 0
+        
+        return {
+          time24: `${String(hour).padStart(2, '0')}:${minute}`,
+          period: match[3].toUpperCase()
+        }
+      }
+      return { time24: '08:00', period: 'AM' }
+    }
+    
+    const startParsed = parseTime(start)
+    const endParsed = parseTime(end)
+    
+    startTime = startParsed.time24
+    endTime = endParsed.time24
+    startPeriod = startParsed.period
+    endPeriod = endParsed.period
+  }
+  
   form.value   = {
     employeeNo:    s.employeeNo,
     employeeName:  s.employeeName,
     department:    s.department,
     shift:         s.shift,
     shiftTime:     s.shiftTime,
+    startTime:     startTime,
+    endTime:       endTime,
+    startPeriod:   startPeriod,
+    endPeriod:     endPeriod,
     days:          [...(s.days ?? [])],
     effectiveDate: s.effectiveDate,
     endDate:       s.endDate,
@@ -747,12 +823,6 @@ function exportToPDF() {
             <button class="view-pill" :class="{ active: calView === 'week' }" @click="calView = 'week'">Week</button>
             <button class="view-pill" :class="{ active: calView === 'month' }" @click="calView = 'month'">Month</button>
           </div>
-          <button class="btn btn-secondary cal-print-btn" @click="exportToPDF">
-            <span class="icon-svg" v-html="svgIcons.print"></span> PDF
-          </button>
-          <button v-if="hasPermission('Schedule Database', 'Add')" class="btn btn-primary cal-add-btn" @click="openAdd">
-            <span class="icon-svg" v-html="svgIcons.add"></span> Add
-          </button>
         </div>
 
         <!-- ── WEEK VIEW ── -->
@@ -896,10 +966,106 @@ function exportToPDF() {
               <label>Shift</label>
               <AppSelect v-model="form.shift" :options="store.shifts" @update:modelValue="onShiftChange" />
             </div>
-            <div class="form-group">
+            
+            <!-- Time Picker Section -->
+            <div class="form-group full">
               <label>Shift Time</label>
-              <input v-model="form.shiftTime" />
+              <div class="shift-time-section">
+                <!-- Quick Shift Buttons -->
+                <div class="quick-shifts">
+                  <button 
+                    type="button" 
+                    v-for="(shiftData, shiftName) in SHIFT_TIMES" 
+                    :key="shiftName"
+                    class="quick-shift-btn"
+                    :class="{ active: form.shift === shiftName }"
+                    @click="form.shift = shiftName; onShiftChange()"
+                  >
+                    {{ shiftName }}
+                  </button>
+                </div>
+                
+                <!-- Custom Time Inputs -->
+                <div class="time-inputs-row">
+                  <div class="time-input-group">
+                    <label class="time-label">Start Time</label>
+                    <div class="time-picker">
+                      <input 
+                        type="time" 
+                        v-model="form.startTime" 
+                        class="time-input"
+                        @change="updateShiftTime"
+                      />
+                      <button 
+                        type="button" 
+                        class="period-toggle"
+                        :class="{ pm: form.startPeriod === 'PM' }"
+                        @click="toggleStartPeriod"
+                      >
+                        {{ form.startPeriod }}
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <span class="time-separator">to</span>
+                  
+                  <div class="time-input-group">
+                    <label class="time-label">End Time</label>
+                    <div class="time-picker">
+                      <input 
+                        type="time" 
+                        v-model="form.endTime" 
+                        class="time-input"
+                        @change="updateShiftTime"
+                      />
+                      <button 
+                        type="button" 
+                        class="period-toggle"
+                        :class="{ pm: form.endPeriod === 'PM' }"
+                        @click="toggleEndPeriod"
+                      >
+                        {{ form.endPeriod }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Display Result -->
+                <div class="shift-time-display">
+                  <span class="display-label">Schedule:</span>
+                  <span class="display-value">{{ form.shiftTime }}</span>
+                </div>
+              </div>
             </div>
+            
+            <!-- Days Selection -->
+            <div class="form-group full">
+              <label>Working Days <span class="days-count">(select up to {{ MAX_WORK_DAYS }} days)</span></label>
+              <div class="days-picker">
+                <label 
+                  v-for="day in ALL_DAYS" 
+                  :key="day"
+                  class="day-toggle"
+                  :class="{ 
+                    selected: form.days.includes(day),
+                    disabled: isDayDisabled(day)
+                  }"
+                >
+                  <input 
+                    type="checkbox" 
+                    :value="day"
+                    v-model="form.days"
+                    :disabled="isDayDisabled(day)"
+                    @change="onDayChange"
+                  />
+                  {{ day }}
+                </label>
+              </div>
+              <div v-if="restDays.length" class="rest-days-info">
+                Rest Day(s): <strong>{{ restDays.join(', ') }}</strong>
+              </div>
+            </div>
+            
             <div class="form-group">
               <label>Effective Date</label>
               <input v-model="form.effectiveDate" type="date" />
@@ -1353,4 +1519,158 @@ function exportToPDF() {
 .fcal-weekend { color:#999; }
 .fcal-selected { background:#1a3a5c !important; color:#fff !important; border-color:#1a3a5c; font-weight:700; }
 .fcal-selected-count { margin-top:6px; font-size:10px; color:#1a6b3c; font-weight:600; text-align:center; }
+
+/* ── Time Picker Styles ── */
+.shift-time-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background: #f8f9fc;
+  border: 1px solid #e2e6ef;
+  border-radius: 8px;
+}
+
+.quick-shifts {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.quick-shift-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1.5px solid #ddd;
+  background: #fff;
+  color: #555;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.quick-shift-btn:hover {
+  border-color: #1a3a5c;
+  color: #1a3a5c;
+  background: #e8f0fe;
+}
+
+.quick-shift-btn.active {
+  background: #1a3a5c;
+  border-color: #1a3a5c;
+  color: #fff;
+}
+
+.time-inputs-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.time-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 140px;
+}
+
+.time-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #666;
+}
+
+.time-picker {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.time-input {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  font-family: monospace;
+}
+
+.time-input:focus {
+  border-color: #1a3a5c;
+  background: #fff;
+}
+
+.period-toggle {
+  padding: 7px 12px;
+  border: 1.5px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+  color: #555;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  min-width: 48px;
+}
+
+.period-toggle:hover {
+  border-color: #1a3a5c;
+  background: #e8f0fe;
+}
+
+.period-toggle.pm {
+  background: #1a3a5c;
+  border-color: #1a3a5c;
+  color: #fff;
+}
+
+.time-separator {
+  font-size: 12px;
+  color: #888;
+  font-weight: 600;
+  padding: 0 4px;
+  align-self: flex-end;
+  padding-bottom: 8px;
+}
+
+.shift-time-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #fff;
+  border: 1px solid #e2e6ef;
+  border-radius: 6px;
+}
+
+.display-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #888;
+}
+
+.display-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1a3a5c;
+  font-family: monospace;
+}
+
+.rest-days-info {
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: #fff3e0;
+  border: 1px solid #ffe0b2;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #e65100;
+}
+
+.rest-days-info strong {
+  font-weight: 700;
+  color: #bf360c;
+}
 </style>

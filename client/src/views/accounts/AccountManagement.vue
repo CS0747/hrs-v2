@@ -24,6 +24,7 @@ const icons = {
   user:   `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>`,
   lock:   `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>`,
   search: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>`,
+  restore: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18z"/></svg>`,
 }
 
 const roles = ['Admin', 'Super Admin', 'IT', 'Section Admin', 'DIOS']
@@ -31,9 +32,11 @@ const search = ref('')
 
 const filtered = computed(() => {
   const q = search.value.toLowerCase()
-  return auth.users.filter(u =>
-    !q || u.name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q) || u.role.toLowerCase().includes(q)
-  )
+  return auth.users.filter(u => {
+    // Show all users (active and inactive)
+    const matchSearch = !q || u.name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q) || u.role.toLowerCase().includes(q)
+    return matchSearch
+  })
 })
 
 // ── Form modal ───────────────────────────────────────────────────────────────
@@ -60,7 +63,9 @@ function openEdit(u) {
   showForm.value  = true
 }
 
-function save() {
+async function save() {
+  if (saving.value) return // Prevent double submission
+  
   formError.value = ''
   if (!form.value.name.trim() || !form.value.username.trim()) { formError.value = 'Name and username are required.'; return }
   if (!editId.value && !form.value.password) { formError.value = 'Biometrics number is required.'; return }
@@ -68,15 +73,31 @@ function save() {
   if (form.value.password && form.value.password !== form.value.confirmPassword) { formError.value = 'Biometrics numbers do not match.'; return }
 
   saving.value = true
-  if (editId.value) {
-    const data = { name: form.value.name, username: form.value.username, role: form.value.role, department: form.value.department }
-    if (form.value.password) data.password = form.value.password
-    auth.updateUser(editId.value, data)
-  } else {
-    auth.signup({ name: form.value.name, username: form.value.username, password: form.value.password, confirmPassword: form.value.confirmPassword, role: form.value.role, department: form.value.department })
+  try {
+    if (editId.value) {
+      const data = { name: form.value.name, username: form.value.username, role: form.value.role, department: form.value.department }
+      if (form.value.password) data.password = form.value.password
+      await auth.updateUser(editId.value, data)
+    } else {
+      const success = await auth.signup({ 
+        name: form.value.name, 
+        username: form.value.username, 
+        password: form.value.password, 
+        confirmPassword: form.value.confirmPassword, 
+        role: form.value.role, 
+        department: form.value.department 
+      })
+      if (!success) {
+        saving.value = false
+        return // Don't close modal if signup failed
+      }
+    }
+    showForm.value = false
+  } catch (e) {
+    formError.value = 'Failed to save account. Please try again.'
+  } finally {
+    saving.value = false
   }
-  saving.value    = false
-  showForm.value  = false
 }
 
 // ── Delete modal ─────────────────────────────────────────────────────────────
@@ -93,6 +114,23 @@ function confirmDelete() {
   if (deleteTarget.value) auth.deleteUser(deleteTarget.value.id)
   showDeleteModal.value = false
   deleteTarget.value    = null
+}
+
+async function reactivateUser(u) {
+  if (confirm(`Reactivate account for ${u.name}?`)) {
+    try {
+      const res = await auth.apiFetch(`http://localhost/hrs-v2/server/api/auth.php?action=reactivate_user&id=${u.id}`, {
+        method: 'PUT'
+      })
+      if (res.ok) {
+        await auth.fetchUsers()
+      } else {
+        alert('Failed to reactivate user')
+      }
+    } catch (e) {
+      alert('Error reactivating user: ' + e.message)
+    }
+  }
 }
 
 function roleColor(role) {
@@ -136,31 +174,41 @@ function initials(name) {
         </thead>
         <tbody>
           <tr v-if="filtered.length === 0"><td colspan="5" class="empty-row">No accounts found.</td></tr>
-          <tr v-for="u in filtered" :key="u.id" :class="{ 'current-row': u.id === auth.currentUser?.id }">
+          <tr v-for="u in filtered" :key="u.id" :class="{ 'current-row': u.id === auth.currentUser?.id, 'inactive-row': !u.active }">
             <td>
               <div class="user-cell">
-                <div class="user-avatar" :style="{ background: roleColor(u.role) }">{{ initials(u.name) }}</div>
+                <div class="user-avatar" :style="{ background: roleColor(u.role), opacity: u.active ? 1 : 0.5 }">{{ initials(u.name) }}</div>
                 <div>
                   <strong>{{ u.name }}</strong>
-                  <div class="user-sub">{{ u.id === auth.currentUser?.id ? '(You)' : '' }}</div>
+                  <div class="user-sub">
+                    <span v-if="u.id === auth.currentUser?.id">(You)</span>
+                    <span v-if="!u.active" class="inactive-badge">Inactive</span>
+                  </div>
                 </div>
               </div>
             </td>
             <td><span class="mono">{{ u.username }}</span></td>
             <td>
-              <span class="role-badge" :style="{ background: roleBg(u.role), color: roleColor(u.role) }">
+              <span class="role-badge" :style="{ background: roleBg(u.role), color: roleColor(u.role), opacity: u.active ? 1 : 0.6 }">
                 {{ u.role }}
               </span>
             </td>
             <td>{{ u.department || '—' }}</td>
             <td>
               <div class="action-btns">
-                <button v-if="hasPermission('Account Management', 'Edit')" class="btn-icon" title="Edit" @click="openEdit(u)">
-                  <span class="icon-svg" v-html="icons.edit"></span>
-                </button>
-                <button v-if="hasPermission('Account Management', 'Delete')" class="btn-icon danger" title="Delete" @click="promptDelete(u)" :disabled="u.id === auth.currentUser?.id">
-                  <span class="icon-svg" v-html="icons.delete"></span>
-                </button>
+                <template v-if="u.active">
+                  <button v-if="hasPermission('Account Management', 'Edit')" class="btn-icon" title="Edit" @click="openEdit(u)">
+                    <span class="icon-svg" v-html="icons.edit"></span>
+                  </button>
+                  <button v-if="hasPermission('Account Management', 'Delete')" class="btn-icon danger" title="Delete Permanently" @click="promptDelete(u)" :disabled="u.id === auth.currentUser?.id">
+                    <span class="icon-svg" v-html="icons.delete"></span>
+                  </button>
+                </template>
+                <template v-else>
+                  <button v-if="hasPermission('Account Management', 'Edit')" class="btn-icon success" title="Reactivate" @click="reactivateUser(u)">
+                    <span class="icon-svg" v-html="icons.restore"></span>
+                  </button>
+                </template>
               </div>
             </td>
           </tr>
@@ -233,7 +281,7 @@ function initials(name) {
         <div class="modal del-modal">
           <div class="del-icon-wrap"><span class="icon-svg del-icon" v-html="icons.warn"></span></div>
           <h3 class="modal-title">Delete Account</h3>
-          <p class="modal-msg">Are you sure you want to delete this account?</p>
+          <p class="modal-msg">Are you sure you want to permanently delete this account?</p>
           <div class="del-card">
             <div class="user-avatar sm" :style="{ background: roleColor(deleteTarget?.role) }">{{ initials(deleteTarget?.name || '') }}</div>
             <div>
@@ -241,10 +289,10 @@ function initials(name) {
               <span>{{ deleteTarget?.role }} · {{ deleteTarget?.username }}</span>
             </div>
           </div>
-          <p class="del-warn">This action cannot be undone.</p>
+          <p class="del-warn">⚠️ This action cannot be undone. The account will be permanently removed from the database.</p>
           <div class="modal-actions">
             <button class="btn btn-cancel" @click="showDeleteModal = false">Cancel</button>
-            <button class="btn btn-delete" @click="confirmDelete">Yes, Delete</button>
+            <button class="btn btn-delete" @click="confirmDelete">Yes, Delete Permanently</button>
           </div>
         </div>
       </div>
@@ -272,6 +320,8 @@ function initials(name) {
 .data-table td { padding:11px 14px; border-bottom:1px solid #f0f4f8; vertical-align:middle; }
 .data-table tbody tr:hover { background:#f9fafb; }
 .current-row { background:#f0f9f4 !important; }
+.inactive-row { background:#fafafa !important; opacity:0.7; }
+.inactive-badge { font-size:10px; color:#e74c3c; font-weight:700; background:#fdecea; padding:2px 6px; border-radius:8px; margin-left:4px; }
 .user-cell { display:flex; align-items:center; gap:10px; }
 .user-avatar { width:34px; height:34px; border-radius:50%; color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex-shrink:0; }
 .user-avatar.sm { width:40px; height:40px; font-size:13px; }
@@ -282,6 +332,7 @@ function initials(name) {
 .btn-icon { background:none; border:none; cursor:pointer; padding:4px; border-radius:4px; display:inline-flex; align-items:center; color:#555; }
 .btn-icon:hover { background:#f0f4f8; color:#1a6b3c; }
 .btn-icon.danger:hover { background:#fdecea; color:#e74c3c; }
+.btn-icon.success:hover { background:#eafaf1; color:#27ae60; }
 .btn-icon:disabled { opacity:0.3; cursor:not-allowed; }
 .empty-row { text-align:center; color:#aaa; padding:40px; }
 /* Modal */

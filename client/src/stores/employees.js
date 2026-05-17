@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useVersionHistory } from '@/composables/useVersionHistory'
+import { API_ENDPOINTS } from '@/config/api'
 
 export const useEmployeeStore = defineStore('employees', () => {
   const employees = ref([])
@@ -22,8 +23,8 @@ export const useEmployeeStore = defineStore('employees', () => {
 
   const employmentStatuses = ['Permanent', 'Casual', 'Contractual', 'Job Order', 'Co-terminus', 'Part Time']
 
-  const API = 'http://localhost/hrs-v2/server/api/employees.php'
-  const DEPT_API = 'http://localhost/hrs-v2/server/api/departments.php'
+  const API = API_ENDPOINTS.EMPLOYEES
+  const DEPT_API = API_ENDPOINTS.DEPARTMENTS
   const loading = ref(false)
   const error = ref(null)
 

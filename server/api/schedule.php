@@ -21,9 +21,10 @@ if (!checkPermission($conn, $userId, 'Schedule Database', $action)) {
 
 switch ($method) {
 
-    // GET /schedule.php          -> all schedules
+    // GET /schedule.php          -> all schedules (grouped by employee)
     // GET /schedule.php?id=1     -> single record
     // GET /schedule.php?emp=GEAMH-001 -> by employee no
+    // GET /schedule.php?grouped=1 -> grouped by employee with latest schedule first
     case 'GET':
         if (isset($_GET['id'])) {
             $id   = (int) $_GET['id'];
@@ -44,7 +45,22 @@ switch ($method) {
             $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
             foreach ($rows as &$r) $r['days'] = json_decode($r['days'] ?? '[]');
             sendJson($rows);
+        } elseif (isset($_GET['grouped'])) {
+            // Group schedules by employee, showing latest schedule first per employee
+            $result = $conn->query(
+                'SELECT s1.* FROM schedules s1
+                 INNER JOIN (
+                     SELECT employee_no, MAX(effective_date) as max_date
+                     FROM schedules
+                     GROUP BY employee_no
+                 ) s2 ON s1.employee_no = s2.employee_no AND s1.effective_date = s2.max_date
+                 ORDER BY s1.employee_name, s1.effective_date DESC'
+            );
+            $rows = $result->fetch_all(MYSQLI_ASSOC);
+            foreach ($rows as &$r) $r['days'] = json_decode($r['days'] ?? '[]');
+            sendJson($rows);
         } else {
+            // Default: return all schedules ordered by employee name and effective date
             $result = $conn->query(
                 'SELECT * FROM schedules ORDER BY employee_name, effective_date DESC'
             );

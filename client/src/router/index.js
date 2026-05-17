@@ -24,6 +24,7 @@ import VersionHistory from '@/views/admin/VersionHistory.vue'
 import UserManual from '@/views/admin/UserManual.vue'
 import DiosAccount from '@/views/admin/DiosAccount.vue'
 import DiosSystemControl from '@/views/admin/DiosSystemControl.vue'
+import PasswordResetRequests from '@/views/admin/PasswordResetRequests.vue'
 
 const routes = [
   { path: '/login', name: 'Login', component: Login, meta: { public: true } },
@@ -50,10 +51,11 @@ const routes = [
   { path: '/user-manual', name: 'UserManual', component: UserManual },
   { path: '/dios-account', name: 'DiosAccount', component: DiosAccount, meta: { adminOrDios: true } },
   { path: '/dios-control', name: 'DiosSystemControl', component: DiosSystemControl, meta: { diosOnly: true } },
+  { path: '/password-resets', name: 'PasswordResetRequests', component: PasswordResetRequests, meta: { diosOnly: true } },
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes,
 })
 
