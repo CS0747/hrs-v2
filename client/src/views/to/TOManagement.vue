@@ -4,6 +4,7 @@ import { useTravelOrderStore } from '@/stores/travel_orders'
 import { useEmployeeStore } from '@/stores/employees'
 import { usePermissions } from '@/composables/usePermissions'
 import AppModal from '@/components/AppModal.vue'
+import { printTravelOrders } from '@/utils/print'
 
 const store = useTravelOrderStore()
 const empStore = useEmployeeStore()
@@ -154,32 +155,8 @@ const filtered = computed(() => store.travelOrders.filter(r => {
   return matchSearch && matchStatus && matchDept && matchFrom && matchTo
 }))
 
-function printRecords() {
-  const rows = filtered.value.map(r =>
-    `<tr><td>${r.employeeName}</td><td>${r.department}</td><td>${r.destination}</td><td>${r.purpose}</td><td>${r.dateFrom}</td><td>${r.dateTo}</td><td>${r.days}</td><td>${r.transport}</td><td>${r.status}</td></tr>`
-  ).join('')
-  const logoUrl = window.location.origin + '/GEAMH LOGO.png'
-  const html = `<html><head><title>Travel Orders</title><style>
-    body{font-family:Arial,sans-serif;padding:24px}
-    .ph{display:flex;align-items:center;gap:14px;border-bottom:2px solid #1a3a5c;padding-bottom:10px;margin-bottom:14px}
-    .ph img{width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid #1a6b3c}
-    .ph h2{margin:0;font-size:15px;color:#1a3a5c}.ph p{margin:2px 0 0;font-size:11px;color:#555}
-    .meta{font-size:11px;color:#888;margin-bottom:12px}
-    table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:6px;font-size:12px}th{background:#1a3a5c;color:#fff}
-    tr:nth-child(even){background:#f9fafb}
-  </style></head><body>
-    <div class="ph"><img src="${logoUrl}" alt="GEAMH"/><div><h2>General Emilio Aguinaldo Memorial Hospital</h2><p>Human Resource Information System (HRIS)</p></div></div>
-    <div class="meta">Travel Orders &mdash; Printed: ${new Date().toLocaleString('en-PH',{hour12:true})}</div>
-    <table><thead><tr><th>Employee</th><th>Dept</th><th>Destination</th><th>Purpose</th><th>From</th><th>To</th><th>Days</th><th>Transport</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
-    <script>window.onload=function(){window.print()}<\/script>
-  </body></html>`
-  const w = window.open('', '_blank')
-  w.document.write(html)
-  w.document.close()
-}
-
 function statusClass(s) {
-  return s === 'Approved' ? 'badge-green' : s === 'Pending' ? 'badge-orange' : 'badge-red'
+  return { Pending: 'badge-orange', Approved: 'badge-green', Disapproved: 'badge-red' }[s] || 'badge-gray'
 }
 </script>
 
@@ -218,7 +195,7 @@ function statusClass(s) {
       </div>
       <div class="toolbar-right">
         <span class="record-count">{{ filtered.length }} record(s)</span>
-        <button class="btn btn-print" @click="printRecords">🖨 Print</button>
+        <button class="btn btn-print" @click="printTravelOrders(filtered, { Status: filterStatus, Department: filterDept, DateFrom: filterDateFrom, DateTo: filterDateTo })">🖨 Print</button>
         <button v-if="hasPermission('Travel Orders', 'Add')" class="btn btn-primary" @click="openAdd">
           <span class="icon-svg" v-html="svgIcons.add"></span> Add T.O.
         </button>

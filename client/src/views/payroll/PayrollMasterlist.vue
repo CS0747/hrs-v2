@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { usePayrollStore } from '@/stores/payroll'
 import { useRouter } from 'vue-router'
 import AppModal from '@/components/AppModal.vue'
+import { printPayrollRecords } from '@/utils/print'
 
 const store = usePayrollStore()
 const router = useRouter()
@@ -114,6 +115,9 @@ function sortIcon(col) {
       </div>
       <div class="toolbar-right">
         <span class="record-count">{{ filtered.length }} record(s)</span>
+        <button class="btn btn-secondary" @click="printPayrollRecords(filtered, { Period: filterPeriod, Status: filterStatus })">
+          🖨 Print
+        </button>
         <button class="btn btn-primary" @click="router.push('/payroll/new')">
           <span class="icon-svg" v-html="svgIcons.add"></span> Add Record
         </button>

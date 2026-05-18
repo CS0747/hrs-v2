@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth'
 import { usePermissions } from '@/composables/usePermissions'
 import { useNotificationStore } from '@/stores/notifications'
 import { onMounted } from 'vue'
+import { printSchedules } from '@/utils/print'
 
 const store    = useScheduleStore()
 const empStore = useEmployeeStore()
@@ -554,6 +555,9 @@ function selectAllMonth() {
         />
       </div>
       <div class="toolbar-right">
+        <button class="btn btn-secondary" @click="printSchedules(filtered, { Department: filterDept, Shift: filterShift })">
+          🖨 Print
+        </button>
         <button v-if="hasPermission('Schedule Database', 'Add')" class="btn btn-primary" @click="openAdd">
           <span class="icon-svg" v-html="svgIcons.add"></span> Add Schedule
         </button>

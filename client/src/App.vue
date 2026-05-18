@@ -1,7 +1,8 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useLiveNotifications } from '@/composables/useLiveNotifications'
 import AppSidebar from './components/AppSidebar.vue'
 import AppHeader from './components/AppHeader.vue'
 import Notifications from './components/Notifications.vue'
@@ -9,6 +10,20 @@ import Notifications from './components/Notifications.vue'
 const route    = useRoute()
 const auth     = useAuthStore()
 const isPublic = computed(() => route.meta.public)
+
+// Initialize live notifications with 5-second polling interval
+const { unreadCount } = useLiveNotifications({ 
+  pollInterval: 5000, // Poll every 5 seconds for real-time feel
+  showToasts: true,
+  autoMarkRead: false
+})
+
+// Watch for auth changes to start/stop polling
+watch(() => auth.currentUser, (user) => {
+  if (!user) {
+    // Polling stops automatically via onUnmounted in composable
+  }
+}, { immediate: true })
 
 // Show read-only banner for Section Admin on all non-schedule pages
 const showReadOnlyBanner = computed(() => {

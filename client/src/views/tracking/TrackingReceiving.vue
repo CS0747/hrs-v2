@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useTrackingStore } from '@/stores/tracking'
 import { usePermissions } from '@/composables/usePermissions'
+import { printTrackingRecords } from '@/utils/print'
 
 const store = useTrackingStore()
 const { hasPermission, loadPermissions } = usePermissions()
@@ -119,36 +120,6 @@ async function markReceived(r) {
   }
 }
 
-function printList() {
-  const isOut = activeTab.value === 'outgoing'
-  const rows = filtered.value.map(r => isOut
-    ? `<tr><td>${r.docType}</td><td>${r.docNo}</td><td>${r.from}</td><td>${r.to}</td><td>${r.dateForwarded||''}</td><td>${r.receivedBy||''}</td><td>${r.status}</td></tr>`
-    : `<tr><td>${r.docType}</td><td>${r.docNo}</td><td>${r.from}</td><td>${r.to}</td><td>${r.dateForwarded}</td><td>${r.dateReceived||'—'}</td><td>${r.receivedBy||'—'}</td><td>${r.status}</td></tr>`
-  ).join('')
-  const headers = isOut
-    ? '<tr><th>Type</th><th>Doc No</th><th>From</th><th>To</th><th>Date Sent</th><th>Sent By</th><th>Status</th></tr>'
-    : '<tr><th>Type</th><th>Doc No</th><th>From</th><th>To</th><th>Forwarded</th><th>Received</th><th>Received By</th><th>Status</th></tr>'
-  const title = isOut ? 'Outgoing Documents' : 'Receiving Documents'
-  const logoUrl = window.location.origin + '/GEAMH LOGO.png'
-  const html = `<html><head><title>${title}</title><style>
-    body{font-family:Arial,sans-serif;padding:24px}
-    .ph{display:flex;align-items:center;gap:14px;border-bottom:2px solid #1a3a5c;padding-bottom:10px;margin-bottom:14px}
-    .ph img{width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid #1a6b3c}
-    .ph h2{margin:0;font-size:15px;color:#1a3a5c}.ph p{margin:2px 0 0;font-size:11px;color:#555}
-    .meta{font-size:11px;color:#888;margin-bottom:12px}
-    table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:6px;font-size:11px}th{background:#1a3a5c;color:#fff}
-    tr:nth-child(even){background:#f9fafb}
-  </style></head><body>
-    <div class="ph"><img src="${logoUrl}" alt="GEAMH"/><div><h2>General Emilio Aguinaldo Memorial Hospital</h2><p>Human Resource Information System (HRIS)</p></div></div>
-    <div class="meta">${title} &mdash; Prepared by: ${AMELA} &mdash; Printed: ${new Date().toLocaleString('en-PH',{hour12:true})}</div>
-    <table><thead>${headers}</thead><tbody>${rows}</tbody></table>
-    <script>window.onload=function(){window.print()}<\/script>
-  </body></html>`
-  const w = window.open('', '_blank')
-  w.document.write(html)
-  w.document.close()
-}
-
 function statusClass(s) {
   const map = { Pending:'badge-orange','In Transit':'badge-blue',Received:'badge-green',Returned:'badge-purple',Lost:'badge-red',Sent:'badge-blue',Delivered:'badge-green' }
   return map[s] || 'badge-gray'
@@ -196,7 +167,7 @@ function statusClass(s) {
       </div>
       <div class="toolbar-right">
         <span class="record-count">{{ filtered.length }} record(s)</span>
-        <button class="btn btn-print" @click="printList">
+        <button class="btn btn-print" @click="printTrackingRecords(filtered, { Type: filterType, Status: filterStatus }, activeTab === 'receiving' ? 'Receiving' : 'Outgoing')">
           <span class="icon-svg" v-html="svgIcons.print"></span> Print
         </button>
         <button v-if="hasPermission('Tracking / Receiving', 'Add')" class="btn btn-primary" @click="openAdd">

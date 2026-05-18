@@ -10,16 +10,60 @@ const username = ref('')
 const password = ref('')
 const showPassword = ref(false)
 const loading = ref(false)
+const showForgotPassword = ref(false)
+const forgotUsername = ref('')
+const forgotLoading = ref(false)
+const forgotSuccess = ref(false)
+const forgotError = ref('')
 
 async function handleLogin() {
   if (!username.value || !password.value) {
-    auth.loginError.value = 'Please enter username and password.'
+    auth.loginError = 'Please enter username and password.'
     return
   }
   loading.value = true
   const ok = await auth.login(username.value, password.value)
   loading.value = false
   if (ok) router.push('/')
+}
+
+function openForgotPassword() {
+  showForgotPassword.value = true
+  forgotUsername.value = ''
+  forgotSuccess.value = false
+  forgotError.value = ''
+}
+
+async function handleForgotPassword() {
+  forgotError.value = ''
+  forgotSuccess.value = false
+  
+  if (!forgotUsername.value.trim()) {
+    forgotError.value = 'Please enter your username.'
+    return
+  }
+  
+  forgotLoading.value = true
+  try {
+    const res = await fetch('http://localhost/hrs-v2/server/api/auth.php?action=request_password_reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: forgotUsername.value.trim() })
+    })
+    
+    const data = await res.json()
+    
+    if (res.ok) {
+      forgotSuccess.value = true
+      forgotUsername.value = ''
+    } else {
+      forgotError.value = data.error || 'Failed to submit password reset request.'
+    }
+  } catch (e) {
+    forgotError.value = 'Connection error. Please try again.'
+  } finally {
+    forgotLoading.value = false
+  }
 }
 </script>
 
@@ -96,12 +140,62 @@ async function handleLogin() {
           <span v-if="loading" class="spinner">⚙️</span>
           <span v-else> Log in </span>
         </button>
+
+        <button type="button" class="forgot-link" @click="openForgotPassword">
+          Forgot your password?
+        </button>
       </form>
 
       <div class="login-footer">
         <span>© 2026 GEAMH — IT / HR Division</span>
       </div>
     </div>
+
+    <!-- Forgot Password Modal -->
+    <Transition name="modal">
+      <div v-if="showForgotPassword" class="modal-overlay" @click.self="showForgotPassword = false">
+        <div class="forgot-modal">
+          <div class="forgot-header">
+            <h3>Reset Password</h3>
+            <button class="close-btn" @click="showForgotPassword = false">✕</button>
+          </div>
+
+          <div v-if="!forgotSuccess" class="forgot-body">
+            <p class="forgot-desc">Enter your username to request a password reset. An administrator will review your request and reset your password.</p>
+            
+            <div class="form-group">
+              <label>Username</label>
+              <input
+                v-model="forgotUsername"
+                type="text"
+                placeholder="Enter your username"
+                @keyup.enter="handleForgotPassword"
+                :disabled="forgotLoading"
+              />
+            </div>
+
+            <div v-if="forgotError" class="error-msg">
+              ⚠️ {{ forgotError }}
+            </div>
+
+            <div class="forgot-actions">
+              <button class="btn-cancel" @click="showForgotPassword = false" :disabled="forgotLoading">Cancel</button>
+              <button class="btn-submit" @click="handleForgotPassword" :disabled="forgotLoading">
+                <span v-if="forgotLoading" class="spinner">⚙️</span>
+                <span v-else>Submit Request</span>
+              </button>
+            </div>
+          </div>
+
+          <div v-else class="forgot-success">
+            <div class="success-icon">✓</div>
+            <h4>Request Submitted</h4>
+            <p>Your password reset request has been submitted. Please contact your administrator (HR or IT) to complete the password reset process.</p>
+            <button class="btn-ok" @click="showForgotPassword = false">OK</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -280,4 +374,179 @@ async function handleLogin() {
   font-size: 11px;
   color: #aaa;
 }
+
+/* Forgot Password Link */
+.forgot-link {
+  background: none;
+  border: none;
+  color: #1a6b3c;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px;
+  margin-top: 4px;
+  transition: opacity 0.2s;
+}
+.forgot-link:hover { opacity: 0.7; text-decoration: underline; }
+
+/* Forgot Password Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.forgot-modal {
+  background: #fff;
+  border-radius: 16px;
+  width: 420px;
+  max-width: 95vw;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  overflow: hidden;
+}
+.forgot-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.forgot-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a6b3c;
+}
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #888;
+  cursor: pointer;
+  padding: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+.close-btn:hover { background: #f0f0f0; }
+.forgot-body {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.forgot-desc {
+  margin: 0;
+  font-size: 13px;
+  color: #555;
+  line-height: 1.6;
+}
+.forgot-body .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.forgot-body .form-group label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #444;
+}
+.forgot-body .form-group input {
+  padding: 10px 12px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.forgot-body .form-group input:focus { border-color: #1a6b3c; }
+.forgot-body .form-group input:disabled { opacity: 0.6; background: #fafafa; }
+.forgot-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+.btn-cancel, .btn-submit {
+  flex: 1;
+  padding: 11px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  border: none;
+}
+.btn-cancel {
+  background: #f0f0f0;
+  color: #555;
+}
+.btn-cancel:hover:not(:disabled) { background: #e0e0e0; }
+.btn-submit {
+  background: linear-gradient(135deg, #1a6b3c, #27ae60);
+  color: #fff;
+}
+.btn-submit:hover:not(:disabled) { opacity: 0.9; }
+.btn-cancel:disabled, .btn-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.forgot-success {
+  padding: 32px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.success-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #e8f5ee;
+  color: #1a6b3c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: 700;
+}
+.forgot-success h4 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a6b3c;
+}
+.forgot-success p {
+  margin: 0;
+  font-size: 13px;
+  color: #555;
+  line-height: 1.6;
+}
+.btn-ok {
+  background: linear-gradient(135deg, #1a6b3c, #27ae60);
+  color: #fff;
+  border: none;
+  padding: 11px 32px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: opacity 0.2s;
+}
+.btn-ok:hover { opacity: 0.9; }
+
+/* Modal Transition */
+.modal-enter-active, .modal-leave-active { transition: opacity 0.2s ease; }
+.modal-enter-active .forgot-modal, .modal-leave-active .forgot-modal { transition: transform 0.2s ease, opacity 0.2s ease; }
+.modal-enter-from, .modal-leave-to { opacity: 0; }
+.modal-enter-from .forgot-modal, .modal-leave-to .forgot-modal { transform: scale(0.95); opacity: 0; }
 </style>

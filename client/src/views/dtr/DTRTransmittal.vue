@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useEmployeeStore } from '@/stores/employees'
 import { usePermissions } from '@/composables/usePermissions'
 import AppModal from '@/components/AppModal.vue'
+import { printDTRRecords } from '@/utils/print'
 
 const store    = useDTRStore()
 const auth     = useAuthStore()
@@ -180,95 +181,6 @@ function statusClass(s) {
   return map[s] || 'badge-gray'
 }
 
-// ── Print ────────────────────────────────────────────────────────────────────
-function printRecords() {
-  const rows = filtered.value.map(r => `
-    <tr>
-      <td>${r.employeeNo}</td>
-      <td>${r.employeeName}</td>
-      <td>${r.department || '—'}</td>
-      <td>${r.period}</td>
-      <td>${r.transmittalType}</td>
-      <td>${r.submittedBy || '—'}</td>
-      <td>${r.dateSubmitted || '—'}</td>
-      <td>${r.dateReceived || '—'}</td>
-      <td>${r.verifiedBy || '—'}</td>
-      <td>${r.status}</td>
-      <td>${r.remarks || '—'}</td>
-    </tr>`).join('')
-  openPrintWindow('DTR Transmittal Records', `
-    <table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse;font-size:12px;">
-      <thead style="background:#1a3a5c;color:#fff;">
-        <tr>
-          <th>Emp No</th><th>Employee Name</th><th>Department</th><th>Period</th>
-          <th>Type</th><th>Submitted By</th><th>Date Submitted</th>
-          <th>Date Received</th><th>Verified By</th><th>Status</th><th>Remarks</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>`)
-}
-
-function printHistory() {
-  const rows = filteredHistory.value.map(h => `
-    <tr>
-      <td>${h.created_at}</td>
-      <td>${h.processed_by}</td>
-      <td>${h.action}</td>
-      <td>${h.employee_no}</td>
-      <td>${h.employee_name}</td>
-      <td>${h.period}</td>
-      <td>${h.transmittal_type}</td>
-      <td>${h.status}</td>
-      <td>${h.remarks || '—'}</td>
-    </tr>`).join('')
-  openPrintWindow('DTR Transmittal History', `
-    <table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse;font-size:12px;">
-      <thead style="background:#1a3a5c;color:#fff;">
-        <tr>
-          <th>Timestamp</th><th>Processed By</th><th>Action</th><th>Emp No</th>
-          <th>Employee Name</th><th>Period</th><th>Type</th><th>Status</th><th>Remarks</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>`)
-}
-
-function openPrintWindow(title, tableHtml) {
-  const logoUrl = window.location.origin + '/GEAMH LOGO.png'
-  const win = window.open('', '_blank', 'width=1100,height=700')
-  win.document.write(`
-    <!DOCTYPE html><html><head>
-      <title>${title}</title>
-      <style>
-        body { font-family: Arial, sans-serif; padding: 24px; }
-        .print-header { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; border-bottom: 2px solid #1a3a5c; padding-bottom: 12px; }
-        .print-logo { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 2px solid #1a6b3c; }
-        .print-org { display: flex; flex-direction: column; }
-        .print-org h2 { margin: 0; font-size: 16px; color: #1a3a5c; }
-        .print-org p  { margin: 2px 0 0; font-size: 12px; color: #555; }
-        .print-meta { font-size: 11px; color: #888; margin-bottom: 14px; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 7px 10px; border: 1px solid #ccc; text-align: left; font-size: 12px; }
-        thead tr { background: #1a3a5c; color: #fff; }
-        tbody tr:nth-child(even) { background: #f9fafb; }
-        @media print { body { padding: 0; } }
-      </style>
-    </head><body>
-      <div class="print-header">
-        <img class="print-logo" src="${logoUrl}" alt="GEAMH Logo" />
-        <div class="print-org">
-          <h2>General Emilio Aguinaldo Memorial Hospital</h2>
-          <p>Human Resource Information System (HRIS)</p>
-        </div>
-      </div>
-      <div class="print-meta">${title} &mdash; Printed: ${new Date().toLocaleString('en-PH', { hour12: true })}</div>
-      ${tableHtml}
-      <script>window.onload = function(){ window.print(); }<\/script>
-    </body></html>`)
-  win.document.close()
-}
-
 // ── Download CSV ─────────────────────────────────────────────────────────────
 function downloadRecordsCSV() {
   const headers = ['Emp No','Employee Name','Department','Period','Type','Submitted By','Date Submitted','Date Received','Verified By','Status','Remarks']
@@ -335,7 +247,7 @@ function downloadCSV(filename, headers, rows) {
         </div>
         <div class="toolbar-right">
           <span class="record-count">{{ filtered.length }} record(s)</span>
-          <button class="btn btn-print" @click="printRecords">
+          <button class="btn btn-print" @click="printDTRRecords(filtered, { Type: filterType, Status: filterStatus })">
             <span class="icon-svg" v-html="svgIcons.print"></span> Print
           </button>
           <button class="btn btn-download" @click="downloadRecordsCSV">
@@ -425,7 +337,7 @@ function downloadCSV(filename, headers, rows) {
         </div>
         <div class="toolbar-right">
           <span class="record-count">{{ filteredHistory.length }} record(s)</span>
-          <button class="btn btn-print" @click="printHistory">
+          <button class="btn btn-print" @click="printDTRRecords(filteredHistory, { Status: historyFilterStatus })">
             <span class="icon-svg" v-html="svgIcons.print"></span> Print
           </button>
           <button class="btn btn-download" @click="downloadHistoryCSV">

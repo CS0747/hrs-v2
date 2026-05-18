@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useEmployeeStore } from '@/stores/employees'
 import { usePermissions } from '@/composables/usePermissions'
+import { printTrainings, printTrainingAttendees } from '@/utils/print'
 
 const empStore = useEmployeeStore()
 const { hasPermission, loadPermissions } = usePermissions()
@@ -268,6 +269,9 @@ function onEmpBlur() { setTimeout(() => { empDropOpen.value = false }, 180) }
       </div>
       <div class="toolbar-right">
         <span class="record-count">{{ filtered.length }} training(s)</span>
+        <button class="btn btn-secondary" @click="printTrainings(filtered, { Category: filterCat, Status: filterStatus })">
+          🖨 Print
+        </button>
         <button v-if="hasPermission('Trainings', 'Add')" class="btn btn-primary" @click="openAdd">
           <span class="icon-svg" v-html="icons.add"></span> Add Training
         </button>
@@ -343,9 +347,14 @@ function onEmpBlur() { setTimeout(() => { empDropOpen.value = false }, 180) }
                 {{ selectedTraining.category }}
               </span>
             </div>
-            <button class="btn btn-primary sm" @click="openAddParticipant">
-              <span class="icon-svg" v-html="icons.person"></span> Add Participants
-            </button>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-secondary sm" @click="printTrainingAttendees(selectedTraining, participants)" v-if="participants.length > 0">
+                🖨 Print List
+              </button>
+              <button class="btn btn-primary sm" @click="openAddParticipant">
+                <span class="icon-svg" v-html="icons.person"></span> Add Participants
+              </button>
+            </div>
           </div>
 
           <div class="panel-stats">

@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useEmployeeStore } from '@/stores/employees'
 import { usePermissions } from '@/composables/usePermissions'
 import AppSelect from '@/components/AppSelect.vue'
+import { printEmployees } from '@/utils/print'
 
 const router = useRouter()
 const store  = useEmployeeStore()
@@ -140,6 +141,9 @@ function sortIcon(col) {
       </div>
       <div class="toolbar-right">
         <span class="record-count">{{ filtered.length }} record(s)</span>
+        <button class="btn btn-secondary" @click="printEmployees(filtered, { Status: filterStatus, Gender: filterGender, Group: filterGroup, Service: filterService })">
+          🖨 Print
+        </button>
         <button v-if="hasPermission('Employee Masterlist', 'Add')" class="btn btn-primary" @click="router.push('/employees/new')">
           <span class="icon-svg" v-html="svgIcons.add"></span> Add Employee
         </button>

@@ -4,6 +4,7 @@ import { useLeaveStore } from '@/stores/leave'
 import { useEmployeeStore } from '@/stores/employees'
 import { usePermissions } from '@/composables/usePermissions'
 import AppModal from '@/components/AppModal.vue'
+import { printLeaveRecords } from '@/utils/print'
 
 const store = useLeaveStore()
 const employeeStore = useEmployeeStore()
@@ -168,6 +169,9 @@ function statusClass(s) {
       </div>
       <div class="toolbar-right">
         <span class="record-count">{{ filtered.length }} record(s)</span>
+        <button class="btn btn-secondary" @click="printLeaveRecords(filtered, { Type: filterType, Status: filterStatus })">
+          🖨 Print
+        </button>
         <button v-if="hasPermission('Leave Management', 'Add')" class="btn btn-primary" @click="openAdd">
           <span class="icon-svg" v-html="svgIcons.add"></span> Add Leave
         </button>

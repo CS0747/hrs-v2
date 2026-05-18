@@ -118,6 +118,7 @@ const allMenuGroups = computed(() => {
       iconKey: 'admin',
       items: [
         { label: 'Account Management', iconKey: 'accounts',    to: '/accounts', module: 'Account Management' },
+        { label: 'Password Resets',    iconKey: 'admin',       to: '/password-resets', module: null },
         { label: 'Audit History',      iconKey: 'audittrail',  to: '/audit-trail', module: 'Audit History' },
         { label: 'Version History',    iconKey: 'versionhist', to: '/version-history', module: null },
         { label: 'System Control',     iconKey: 'dios',        to: '/dios-control', module: null },

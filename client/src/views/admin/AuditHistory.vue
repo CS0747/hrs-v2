@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { printAuditLogs } from '@/utils/print'
 
 const auth = useAuthStore()
 
@@ -106,7 +107,12 @@ function exportCSV() {
         <h2>Audit History</h2>
         <p>Complete log of all user actions in the system.</p>
       </div>
-      <button class="btn btn-export" @click="exportCSV">⬇ Export CSV</button>
+      <div style="display: flex; gap: 10px;">
+        <button class="btn btn-secondary" @click="printAuditLogs(filtered, { Module: filterModule, Action: filterAction })">
+          🖨 Print
+        </button>
+        <button class="btn btn-export" @click="exportCSV">⬇ Export CSV</button>
+      </div>
     </div>
 
     <div class="toolbar">
