@@ -93,3 +93,40 @@ function notifyTrainingAdded($conn, $trainingTitle, $trainingId) {
         '/trainings'
     );
 }
+
+function notifyDTRSubmitted($conn, $employeeName, $period, $dtrId) {
+    notifyAdmins(
+        $conn,
+        'dtr_submitted',
+        'New DTR Submitted',
+        "$employeeName submitted DTR for $period",
+        $dtrId,
+        'dtr',
+        '/dtr'
+    );
+}
+
+function notifyScheduleAssigned($conn, $userId, $employeeName, $shift, $scheduleId) {
+    createNotification(
+        $conn,
+        $userId,
+        'schedule_assigned',
+        'Schedule Assigned',
+        "Your schedule has been set to $shift shift",
+        $scheduleId,
+        'schedule',
+        '/schedule'
+    );
+}
+
+function notifyEmployeeUpdated($conn, $employeeName, $employeeId) {
+    notifyAdmins(
+        $conn,
+        'employee_updated',
+        'Employee Updated',
+        "$employeeName's information has been updated",
+        $employeeId,
+        'employee',
+        '/employees'
+    );
+}

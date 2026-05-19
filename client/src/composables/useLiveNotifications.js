@@ -8,6 +8,7 @@ export function useLiveNotifications() {
     const loading = ref(false)
     const error = ref(null)
     let pollInterval = null
+    let isFetching = false // Prevent duplicate fetching
 
     const unreadCount = computed(() =>
         notifications.value.filter(n => !n.isRead).length
@@ -18,8 +19,9 @@ export function useLiveNotifications() {
     )
 
     async function fetchNotifications() {
-        if (!auth.isLoggedIn) return
+        if (!auth.isLoggedIn || isFetching) return
 
+        isFetching = true
         loading.value = true
         error.value = null
 
@@ -38,6 +40,7 @@ export function useLiveNotifications() {
                     referenceType: n.reference_type,
                     link: n.link,
                     isRead: Boolean(n.is_read),
+                    is_read: n.is_read, // Keep original for compatibility
                     createdAt: n.created_at,
                     readAt: n.read_at
                 }))
@@ -47,6 +50,7 @@ export function useLiveNotifications() {
             console.error('Failed to fetch notifications:', err)
         } finally {
             loading.value = false
+            isFetching = false
         }
     }
 
@@ -61,6 +65,7 @@ export function useLiveNotifications() {
                 const notification = notifications.value.find(n => n.id === notificationId)
                 if (notification) {
                     notification.isRead = true
+                    notification.is_read = 1
                     notification.readAt = new Date().toISOString()
                 }
             }
@@ -79,6 +84,7 @@ export function useLiveNotifications() {
             if (response.ok) {
                 notifications.value.forEach(n => {
                     n.isRead = true
+                    n.is_read = 1
                     n.readAt = new Date().toISOString()
                 })
             }
@@ -102,7 +108,7 @@ export function useLiveNotifications() {
         }
     }
 
-    function startPolling(intervalMs = 30000) {
+    function startPolling(intervalMs = 5000) { // Changed to 5 seconds
         if (pollInterval) return
 
         fetchNotifications()
@@ -118,7 +124,7 @@ export function useLiveNotifications() {
 
     onMounted(() => {
         if (auth.isLoggedIn) {
-            startPolling()
+            startPolling(5000) // 5 seconds interval
         }
     })
 

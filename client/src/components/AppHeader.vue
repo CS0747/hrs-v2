@@ -19,7 +19,7 @@ const {
   markAsRead,
   markAllAsRead,
   deleteNotification,
-} = useLiveNotifications({ pollInterval: 5000, showToasts: true })
+} = useLiveNotifications()
 
 const showNotificationPanel = ref(false)
 const notificationPanelRef = ref(null)
@@ -52,15 +52,28 @@ async function handleMarkAllRead() {
 }
 
 function formatTimeAgo(dateStr) {
-  const date = new Date(dateStr)
-  const now = new Date()
-  const seconds = Math.floor((now - date) / 1000)
+  if (!dateStr) return 'Just now'
   
-  if (seconds < 60) return 'Just now'
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
-  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`
-  return date.toLocaleDateString()
+  try {
+    const date = new Date(dateStr)
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return 'Just now'
+    }
+    
+    const now = new Date()
+    const seconds = Math.floor((now - date) / 1000)
+    
+    if (seconds < 60) return 'Just now'
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
+    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`
+    return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
+  } catch (error) {
+    console.error('Error formatting date:', error)
+    return 'Just now'
+  }
 }
 
 function getNotifIcon(type) {
@@ -69,7 +82,10 @@ function getNotifIcon(type) {
     leave_request: '<path d="M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V8h16v13z"/>',
     travel_order: '<path d="M21 5h-9.17C6.41 5 2 9.41 2 14.83V15h20V6c0-.55-.45-1-1-1m-8 6H5.01c1.34-2.38 3.89-4 6.82-4H13zm-8 8h16c.55 0 1-.45 1-1v-2H2c0 1.65 1.35 3 3 3"/>',
     employee_added: '<path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>',
+    employee_updated: '<path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>',
     training_added: '<path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82zM12 3L1 9l11 6 9-4.91V17h2V9L12 3z"/>',
+    dtr_submitted: '<path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/>',
+    schedule_assigned: '<path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>',
     audit_log: '<path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zm-2 9H7v-2h4v2zm4-4H7v-2h8v2zm0-4H7V8h8v2z"/>',
   }
   return icons[type] || icons.audit_log
@@ -81,7 +97,10 @@ function getNotifIconStyle(type) {
     leave_request: 'background: #fff8e1; color: #f59e0b;',
     travel_order: 'background: #fef3e2; color: #e67e22;',
     employee_added: 'background: #eafaf1; color: #10b981;',
+    employee_updated: 'background: #e0f2fe; color: #0284c7;',
     training_added: 'background: #e8f5ee; color: #1a6b3c;',
+    dtr_submitted: 'background: #fef3c7; color: #d97706;',
+    schedule_assigned: 'background: #ede9fe; color: #7c3aed;',
     audit_log: 'background: #f3f4f6; color: #6b7280;',
   }
   return styles[type] || styles.audit_log

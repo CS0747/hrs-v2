@@ -19,10 +19,8 @@ const filterDate   = ref('')
 // Modal states
 const showSnapshot    = ref(false)
 const snapshotData    = ref(null)
-const showAllVersions = ref(false)
-const allVersionsKey  = ref(null)   // { module, recordId, label }
 
-const MODULES = ['Employee', 'Leave', 'Payroll', 'Schedule', 'Training', 'DTR', 'T.O.', 'Tracking', 'Signatory', 'Department', 'Account']
+const MODULES = ['Employee', 'Leave', 'Schedule', 'Training', 'DTR', 'T.O.', 'Tracking', 'Signatory', 'Department', 'Account']
 const ACTIONS = ['CREATE', 'UPDATE', 'DELETE']
 
 // ── Fetch ─────────────────────────────────────────────────────────────────────
@@ -64,16 +62,6 @@ const filtered = computed(() => {
   })
 })
 
-// ── All versions for a specific record ────────────────────────────────────────
-const recordVersions = computed(() => {
-  if (!allVersionsKey.value) return []
-  const { module, recordId } = allVersionsKey.value
-  return logs.value.filter(r =>
-    r.module === module &&
-    (recordId ? String(r.record_id) === String(recordId) : true)
-  )
-})
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function actionBadgeClass(type) {
   return { CREATE: 'type-added', UPDATE: 'type-edited', DELETE: 'type-deleted' }[type] || 'type-other'
@@ -112,33 +100,132 @@ function viewSnapshot(entry) {
   showSnapshot.value = true
 }
 
-function openAllVersions(entry) {
-  allVersionsKey.value = {
-    module:   entry.module,
-    recordId: entry.record_id,
-    label:    entry.details ?? entry.action,
-  }
-  showAllVersions.value = true
-}
+function printHistory() {
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) return
 
-const showClearModal = ref(false)
+  const rows = filtered.value.map(entry => `
+    <tr>
+      <td>${actionLabel(entry.action_type)}</td>
+      <td>${entry.module}</td>
+      <td>${entry.details || '—'}</td>
+      <td>${entry.user_name || '—'}</td>
+      <td>${formatDate(entry.created_at)}</td>
+    </tr>
+  `).join('')
 
-async function clearHistory() {
-  showClearModal.value = true
-}
-async function confirmClear() {
-  showClearModal.value = false
-  // Archive all shown logs
-  await Promise.all(
-    filtered.value.map(r =>
-      fetch(`${AUDIT_API}?id=${r.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ archived: 1 }),
-      })
-    )
-  )
-  await fetchLogs()
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Version History - GEAMH HRIS</title>
+      <style>
+        @media print {
+          @page { size: A4 landscape; margin: 15mm; }
+          body { margin: 0; }
+        }
+        body {
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+          padding: 20px;
+          color: #333;
+        }
+        .header {
+          text-align: center;
+          margin-bottom: 20px;
+          border-bottom: 3px solid #1a3a5c;
+          padding-bottom: 15px;
+        }
+        .header h1 {
+          margin: 0 0 5px;
+          color: #1a3a5c;
+          font-size: 24px;
+        }
+        .header h2 {
+          margin: 0 0 10px;
+          color: #555;
+          font-size: 18px;
+          font-weight: normal;
+        }
+        .filters {
+          background: #f8f9fa;
+          padding: 10px 15px;
+          border-radius: 8px;
+          margin-bottom: 15px;
+          font-size: 12px;
+          color: #555;
+        }
+        .filters strong { color: #1a3a5c; }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 11px;
+        }
+        thead {
+          background: #1a3a5c;
+          color: white;
+        }
+        th {
+          padding: 10px 8px;
+          text-align: left;
+          font-weight: 600;
+        }
+        td {
+          padding: 8px;
+          border-bottom: 1px solid #e9ecef;
+        }
+        tbody tr:nth-child(even) {
+          background: #f8f9fa;
+        }
+        .footer {
+          margin-top: 20px;
+          text-align: center;
+          font-size: 10px;
+          color: #888;
+          border-top: 1px solid #ddd;
+          padding-top: 10px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>GEAMH HRIS</h1>
+        <h2>Version History Report</h2>
+      </div>
+      <div class="filters">
+        <strong>Filters Applied:</strong>
+        ${filterModule.value ? `Module: ${filterModule.value} | ` : ''}
+        ${filterAction.value ? `Action: ${actionLabel(filterAction.value)} | ` : ''}
+        ${filterDate.value ? `Date: ${filterDate.value} | ` : ''}
+        ${search.value ? `Search: "${search.value}" | ` : ''}
+        <strong>Total Records:</strong> ${filtered.value.length}
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Action</th>
+            <th>Module</th>
+            <th>Record / Details</th>
+            <th>By</th>
+            <th>Date & Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+      <div class="footer">
+        Generated on ${new Date().toLocaleString('en-PH')} | GEAMH HRIS Version History
+      </div>
+    </body>
+    </html>
+  `
+
+  printWindow.document.write(html)
+  printWindow.document.close()
+  printWindow.focus()
+  setTimeout(() => {
+    printWindow.print()
+  }, 250)
 }
 
 function renderJson(val) {
@@ -155,6 +242,7 @@ function renderJson(val) {
 const svgClose   = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`
 const svgHistory = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>`
 const svgRefresh = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>`
+const svgPrint   = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>`
 </script>
 
 <template>
@@ -169,7 +257,10 @@ const svgRefresh = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.65
           <span v-html="svgRefresh" class="icon-svg"></span>
           {{ loading ? 'Loading...' : 'Refresh' }}
         </button>
-        <button class="btn btn-danger" @click="clearHistory" :disabled="loading">🗑 Clear History</button>
+        <button class="btn btn-print" @click="printHistory" :disabled="loading || filtered.length === 0">
+          <span v-html="svgPrint" class="icon-svg"></span>
+          Print
+        </button>
       </div>
     </div>
 
@@ -241,9 +332,6 @@ const svgRefresh = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.65
             <td>
               <div class="action-btns">
                 <button class="btn-view" @click="viewSnapshot(entry)">👁 View</button>
-                <button class="btn-versions" @click="openAllVersions(entry)" title="All versions for this record">
-                  <span v-html="svgHistory" class="icon-svg"></span> History
-                </button>
               </div>
             </td>
           </tr>
@@ -290,61 +378,6 @@ const svgRefresh = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.65
         </div>
       </div>
     </Transition>
-
-    <!-- ── All Versions Modal ──────────────────────────────────────────────── -->
-    <Transition name="modal">
-      <div v-if="showAllVersions" class="modal-overlay" @click.self="showAllVersions = false">
-        <div class="modal modal-wide">
-          <div class="modal-header">
-            <div>
-              <h3>Record History</h3>
-              <p class="snap-meta">{{ allVersionsKey?.label }} — {{ recordVersions.length }} version(s)</p>
-            </div>
-            <button class="btn-icon" @click="showAllVersions = false" v-html="svgClose"></button>
-          </div>
-
-          <div v-if="recordVersions.length === 0" class="empty-row" style="padding:24px;text-align:center;color:#aaa;">
-            No versions found for this record.
-          </div>
-
-          <div v-else class="versions-timeline">
-            <div
-              v-for="(ver, idx) in recordVersions"
-              :key="ver.id"
-              class="version-card"
-              :class="{ 'version-latest': idx === 0 }"
-            >
-              <div class="version-card-header">
-                <div class="version-left">
-                  <span class="version-num">v{{ recordVersions.length - idx }}</span>
-                  <span class="type-badge" :class="actionBadgeClass(ver.action_type)">{{ actionLabel(ver.action_type) }}</span>
-                  <span v-if="idx === 0" class="latest-chip">Latest</span>
-                </div>
-                <div class="version-right">
-                  <span class="version-meta">🕐 {{ formatDate(ver.created_at) }}</span>
-                  <span class="version-meta">👤 {{ ver.user_name }}</span>
-                  <button class="btn-view" @click="viewSnapshot(ver)">👁 View Details</button>
-                </div>
-              </div>
-              <div class="version-details">{{ ver.details }}</div>
-            </div>
-          </div>
-
-          <button class="btn btn-primary close-btn" @click="showAllVersions = false">Close</button>
-        </div>
-      </div>
-    </Transition>
-
-    <!-- Clear History Confirmation -->
-    <AppModal
-      v-if="showClearModal"
-      type="warning"
-      title="Clear Version History"
-      message="This will archive all currently visible history entries. This cannot be undone."
-      confirmLabel="Yes, Clear"
-      @confirm="confirmClear"
-      @cancel="showClearModal = false"
-    />
   </div>
 </template>
 
@@ -370,8 +403,8 @@ const svgRefresh = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.65
 .btn-primary { background:#1a3a5c; color:#fff; }
 .btn-refresh { background:#ebf5fb; color:#2980b9; border:1px solid #a9cce3; }
 .btn-refresh:hover:not(:disabled) { background:#2980b9; color:#fff; }
-.btn-danger  { background:#fdecea; color:#e74c3c; border:1px solid #f5b7b1; }
-.btn-danger:hover:not(:disabled) { background:#e74c3c; color:#fff; }
+.btn-print { background:#eafaf1; color:#1a6b3c; border:1px solid #a9dfbf; }
+.btn-print:hover:not(:disabled) { background:#1a6b3c; color:#fff; }
 
 /* Error */
 .error-banner { background:#fef3e2; border:1px solid #f5cba7; border-radius:8px; padding:10px 14px; font-size:13px; color:#e67e22; margin-bottom:12px; }
@@ -413,8 +446,6 @@ const svgRefresh = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.65
 .action-btns { display:flex; gap:6px; align-items:center; }
 .btn-view { background:none; border:1px solid #ddd; border-radius:6px; padding:4px 10px; font-size:11px; cursor:pointer; color:#1a3a5c; white-space:nowrap; }
 .btn-view:hover { background:#e8f0fe; }
-.btn-versions { background:none; border:1px solid #1a6b3c; border-radius:6px; padding:4px 10px; font-size:11px; cursor:pointer; color:#1a6b3c; display:inline-flex; align-items:center; gap:4px; white-space:nowrap; }
-.btn-versions:hover { background:#eafaf1; }
 .icon-svg { display:inline-flex; align-items:center; width:14px; height:14px; }
 .icon-svg :deep(svg) { width:100%; height:100%; fill:currentColor; }
 
@@ -438,18 +469,6 @@ const svgRefresh = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.65
 .snap-pre { background:#f8f9fa; border:1px solid #e9ecef; border-radius:6px; padding:10px; font-size:11px; white-space:pre-wrap; word-break:break-word; margin:0; max-height:300px; overflow-y:auto; color:#333; font-family:monospace; }
 .snap-no-data { text-align:center; color:#aaa; padding:24px; font-size:13px; }
 .close-btn { margin-top:12px; float:right; }
-
-/* All Versions timeline */
-.versions-timeline { display:flex; flex-direction:column; gap:10px; margin-bottom:16px; max-height:55vh; overflow-y:auto; padding-right:4px; }
-.version-card { border:1px solid #e9ecef; border-radius:10px; padding:12px 14px; background:#fafafa; }
-.version-card.version-latest { border-color:#1a3a5c; background:#f0f4f8; }
-.version-card-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:6px; }
-.version-left { display:flex; align-items:center; gap:8px; }
-.version-right { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-.version-num { font-size:11px; font-weight:700; color:#1a3a5c; background:#e8f0fe; padding:2px 8px; border-radius:6px; }
-.latest-chip { font-size:10px; font-weight:700; background:#1a3a5c; color:#fff; padding:2px 8px; border-radius:6px; }
-.version-meta { font-size:11px; color:#555; white-space:nowrap; }
-.version-details { font-size:12px; color:#666; padding-top:4px; border-top:1px solid #e9ecef; }
 
 /* Modal transition */
 .modal-enter-active, .modal-leave-active { transition:opacity 0.2s ease; }

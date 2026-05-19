@@ -1,5 +1,6 @@
 <?php
 require_once 'db.php';
+require_once 'notification_helpers.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $conn   = getConnection();
@@ -62,7 +63,13 @@ switch ($method) {
             $data['remarks']
         );
         $stmt->execute();
-        sendJson(['id' => $conn->insert_id, 'message' => 'Travel order created'], 201);
+        
+        $toId = $conn->insert_id;
+        $employeeName = $data['employee_name'];
+        $destination = $data['destination'];
+        notifyTravelOrder($conn, $employeeName, $destination, $toId);
+        
+        sendJson(['id' => $toId, 'message' => 'Travel order created'], 201);
         break;
 
     case 'PUT':

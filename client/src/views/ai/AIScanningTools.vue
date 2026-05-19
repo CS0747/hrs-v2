@@ -50,10 +50,23 @@ const errorMsg      = ref('')
 // -- Load saved scans from DB --------------------------------------------------
 async function loadSavedScans() {
   try {
-    const res  = await fetch(API)
+    const res  = await fetch(API, {
+      headers: {
+        'X-User-ID': localStorage.getItem('userId') || '0'
+      }
+    })
+    if (!res.ok) {
+      const errorText = await res.text()
+      console.error('Failed to load scans:', res.status, errorText)
+      errorMsg.value = 'Failed to load saved scans. Please check permissions.'
+      return
+    }
     const data = await res.json()
     savedScans.value = Array.isArray(data) ? data : []
-  } catch (e) { console.warn('Could not load saved scans:', e.message) }
+  } catch (e) { 
+    console.error('Could not load saved scans:', e)
+    errorMsg.value = 'Network error: ' + e.message
+  }
 }
 
 // -- File drop / input ---------------------------------------------------------
@@ -77,10 +90,24 @@ async function processFiles(files) {
       const fd = new FormData()
       fd.append('file', file)
       
+      const userId = localStorage.getItem('userId') || '0'
+      
       // Upload to server - OCR.space API processes images server-side
-      const res  = await fetch(API, { method: 'POST', body: fd })
+      const res  = await fetch(API, { 
+        method: 'POST', 
+        body: fd,
+        headers: {
+          'X-User-ID': userId
+        }
+      })
+      
+      if (!res.ok) {
+        const errorText = await res.text()
+        throw new Error(`Upload failed (${res.status}): ${errorText}`)
+      }
+      
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Upload failed')
+      if (data.error) throw new Error(data.error)
 
       // Server returns complete OCR results
       const scan = { ...data, _saved: false, _editing: false }
@@ -92,6 +119,7 @@ async function processFiles(files) {
       
       uploadProgress.value = `✓ ${file.name} processed successfully!`
     } catch (e) {
+      console.error('Upload error:', e)
       errorMsg.value = e.message
       uploadProgress.value = `✗ Failed to process ${file.name}`
     }
@@ -584,9 +612,14 @@ function closePreview() {
 async function saveScan(scan) {
   saving.value = true
   try {
+    const userId = localStorage.getItem('userId') || '0'
+    
     const res  = await fetch(SAVE_API, {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-User-ID': userId
+      },
       body: JSON.stringify({
         file_name:      scan.file_name,
         file_path:      scan.file_path,
@@ -596,30 +629,59 @@ async function saveScan(scan) {
         extracted_data: scan.extracted_data,
         raw_text:       scan.raw_text,
         status:         scan.status,
+        uploaded_by:    parseInt(userId)
       }),
     })
+    
+    if (!res.ok) {
+      const errorText = await res.text()
+      throw new Error(`Save failed (${res.status}): ${errorText}`)
+    }
+    
     const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Save failed')
+    if (data.error) throw new Error(data.error)
+    
     scan._saved = true
     scan.id     = data.id
     savedScans.value.unshift({ ...scan })
     pendingScans.value = pendingScans.value.filter(s => s !== scan)
     showPreview.value  = false
     notificationStore.success('Saved successfully!')
-  } catch (e) { notificationStore.error('Save failed: ' + e.message) }
+  } catch (e) { 
+    console.error('Save error:', e)
+    notificationStore.error('Save failed: ' + e.message) 
+  }
   finally { saving.value = false }
 }
 
 // -- Delete --------------------------------------------------------------------
 async function deleteScan(scan) {
   if (!confirm(`Delete "${scan.file_name}"?`)) return
-  if (scan.id) {
-    await fetch(`${API}?id=${scan.id}`, { method: 'DELETE' })
-    savedScans.value = savedScans.value.filter(s => s.id !== scan.id)
-  } else {
-    pendingScans.value = pendingScans.value.filter(s => s !== scan)
+  try {
+    const userId = localStorage.getItem('userId') || '0'
+    
+    if (scan.id) {
+      const res = await fetch(`${API}?id=${scan.id}`, { 
+        method: 'DELETE',
+        headers: {
+          'X-User-ID': userId
+        }
+      })
+      
+      if (!res.ok) {
+        const errorText = await res.text()
+        throw new Error(`Delete failed (${res.status}): ${errorText}`)
+      }
+      
+      savedScans.value = savedScans.value.filter(s => s.id !== scan.id)
+    } else {
+      pendingScans.value = pendingScans.value.filter(s => s !== scan)
+    }
+    if (selectedScan.value === scan) { selectedScan.value = null; showPreview.value = false }
+  } catch (e) {
+    console.error('Delete error:', e)
+    notificationStore.error('Delete failed: ' + e.message)
   }
-  if (selectedScan.value === scan) { selectedScan.value = null; showPreview.value = false }
 }
 
 // -- Export functions ----------------------------------------------------------

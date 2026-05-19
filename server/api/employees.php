@@ -1,5 +1,6 @@
 <?php
 require_once 'db.php';
+require_once 'notification_helpers.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $conn   = getConnection();
@@ -82,7 +83,14 @@ switch ($method) {
         );
 
         if (!$stmt->execute()) sendError('Insert failed: ' . $stmt->error, 500);
-        sendJson(['id' => $conn->insert_id, 'message' => 'Employee created'], 201);
+        
+        $employeeId = $conn->insert_id;
+        $employeeName = "$first_name $last_name";
+        
+        // Notify admins about new employee
+        notifyEmployeeAdded($conn, $employeeName, $employeeId);
+        
+        sendJson(['id' => $employeeId, 'message' => 'Employee created'], 201);
         break;
 
     case 'PUT':
@@ -134,6 +142,10 @@ switch ($method) {
         );
 
         if (!$stmt->execute()) sendError('Update failed: ' . $stmt->error, 500);
+        
+        $employeeName = "$first_name $last_name";
+        notifyEmployeeUpdated($conn, $employeeName, $id);
+        
         sendJson(['message' => 'Employee updated']);
         break;
 

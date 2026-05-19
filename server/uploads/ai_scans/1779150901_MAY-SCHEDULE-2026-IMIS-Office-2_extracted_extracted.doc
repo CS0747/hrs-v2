@@ -1,0 +1,129 @@
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+    xmlns:w="urn:schemas-microsoft-com:office:word"
+    xmlns="http://www.w3.org/TR/REC-html40">
+  <head><meta charset="utf-8"><title>MAY-SCHEDULE-2026-IMIS-Office-2_extracted.csv</title>
+  <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->
+  <style>body{font-family:Calibri,sans-serif;margin:2cm}h1{color:#1a3a5c}h2,h3{color:#1a3a5c}</style>
+  </head>
+  <body>
+    <h1>MAY-SCHEDULE-2026-IMIS-Office-2_extracted.csv</h1>
+    <table border="0" cellpadding="4" style="font-size:10pt;margin-bottom:12pt">
+      <tr><td><b>Document Type</b></td><td>Schedule</td></tr>
+      <tr><td><b>File Size</b></td><td>1.7 KB</td></tr>
+      <tr><td><b>AI Confidence</b></td><td>95%</td></tr>
+      <tr><td><b>Status</b></td><td>Processed</td></tr>
+    </table>
+    <hr/>
+    <h2>Extracted Data</h2>
+    <div class="sched-doc">
+    <div class="sched-header">
+      <div class="sched-hosp">"GEAMH HRIS ï¿½ AI Scan Export"</div>
+      <div class="sched-sub">Korea-Philippines Friendship Health Project</div>
+      <div class="sched-sub">Trece Martires City</div>
+      <div class="sched-title">Schedule of Duties</div>
+      <div class="sched-period">May 1-31, 2026</div>
+    </div>
+
+    <div class="sched-dept-row">
+      <span><strong>Department/Unit:</strong> Electronic Medical Records (EMR)</span>
+    </div>
+
+    <div class="sched-table-wrap">
+    <table border="1" cellpadding="5" cellspacing="0" style="border-collapse:collapse;width:100%;font-size:10pt" class="sched-table">
+      <th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left"ead>
+        <tr class="tr-days">
+          <th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" rowspan="2" class="th-name">NAME OF EMPLOYEE</th>
+          <th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">1</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">2</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">3</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">4</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">5</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">6</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">7</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">8</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">9</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">10</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">11</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">12</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">13</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">14</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">15</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">16</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">17</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">18</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">19</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">20</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">21</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">22</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">23</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">24</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">25</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">26</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">27</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">28</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">29</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">30</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-day">31</th>
+          <th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" rowspan="2" class="th-days">No. of<br>days</th>
+          <th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" rowspan="2" class="th-sig">Signature</th>
+        </tr>
+        <tr class="tr-daynames">
+          <th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow ">FRI</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow th-weekend">SAT</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow th-weekend">SUN</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow ">MON</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow ">TUE</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow ">WED</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow ">THU</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow ">FRI</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow th-weekend">SAT</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow th-weekend">SUN</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow ">MON</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow ">TUE</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow ">WED</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow ">THU</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow ">FRI</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow th-weekend">SAT</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow th-weekend">SUN</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow ">MON</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow ">TUE</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow ">WED</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow ">THU</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow ">FRI</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow th-weekend">SAT</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow th-weekend">SUN</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow ">MON</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow ">TUE</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow ">WED</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow ">THU</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow ">FRI</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow th-weekend">SAT</th><th style="background:#1a3a5c;color:#fff;padding:6px;text-align:left" class="th-dow th-weekend">SUN</th>
+        </tr>
+      </thead>
+      <tbody><tr><td style="padding:5px;border:1px solid #ccc" colspan="34" class="td-group">KPFP</td></tr><tr><td style="padding:5px;border:1px solid #ccc" class="td-name">HERBERT C. LUGAY</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-holiday">H</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-days">20</td><td style="padding:5px;border:1px solid #ccc" class="td-sig"></td></tr><tr><td style="padding:5px;border:1px solid #ccc" class="td-name">JULY A. BATES</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-days">20</td><td style="padding:5px;border:1px solid #ccc" class="td-sig"></td></tr><tr><td style="padding:5px;border:1px solid #ccc" colspan="34" class="td-group">GEAMH</td></tr><tr><td style="padding:5px;border:1px solid #ccc" class="td-name">RHEANBELLE C. AGRIMANO</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-off">O</td><td style="padding:5px;border:1px solid #ccc" class="td-day day-work">85</td><td style="padding:5px;border:1px solid #ccc" class="td-days">20</td><td style="padding:5px;border:1px solid #ccc" class="td-sig"></td></tr></tbody></table></div><div class="sched-legend">
+      <strong>LEGEND:</strong>
+      <span class="leg-item"><strong>85</strong> &nbsp;-&nbsp; 8:00am to 5:00 pm														H	-	Holiday</span>&emsp;<span class="leg-item"><strong>O</strong> &nbsp;-&nbsp; Off Duty</span>&emsp;<span class="leg-item"><strong>H</strong> &nbsp;-&nbsp; Holiday</span>
+    </div><div class="sched-sigs">
+    <div class="sig-col">
+      <div class="sig-label">Prepared by:</div>
+      <div class="sig-name">HERBERT C. LUGAY							ALLAN MIRANDILLA													NONIE JOHN L. DALISAY MD, FPOGS, MBA</div>
+      <div class="sig-title">Administrative Assistant VI							Records Officer I													Provincial Health Officer II</div>
+    </div>
+    <div class="sig-col">
+      <div class="sig-label">Approved by:</div>
+      <div class="sig-name">HERBERT C. LUGAY							ALLAN MIRANDILLA													NONIE JOHN L. DALISAY MD, FPOGS, MBA</div>
+      <div class="sig-title">Administrative Assistant VI							Records Officer I													Provincial Health Officer II</div>
+    </div>
+    <div class="sig-col">
+      <div class="sig-label">Noted by:</div>
+      <div class="sig-name">HERBERT C. LUGAY							ALLAN MIRANDILLA													NONIE JOHN L. DALISAY MD, FPOGS, MBA</div>
+      <div class="sig-title">Administrative Assistant VI							Records Officer I													Provincial Health Officer II</div>
+    </div>
+  </div>
+  </div>
+
+  <style>
+    .sched-doc { font-family: Arial, sans-serif; font-size: 11px; padding: 12px; background: #fff; }
+    .sched-header { text-align: center; margin-bottom: 12px; }
+    .sched-hosp { font-size: 13px; font-weight: 700; color: #1a3a5c; }
+    .sched-sub { font-size: 11px; color: #555; }
+    .sched-title { font-size: 12px; font-weight: 700; margin-top: 8px; text-decoration: underline; }
+    .sched-period { font-size: 12px; font-weight: 700; text-decoration: underline; }
+    .sched-dept-row { margin-bottom: 8px; font-size: 11px; }
+    .sched-table-wrap { overflow-x: auto; }
+    .sched-table { border-collapse: collapse; font-size: 9px; min-width: 100%; }
+    .sched-table th, .sched-table td { border: 1px solid #999; padding: 2px 3px; text-align: center; white-space: nowrap; }
+    .th-name, .td-name { text-align: left; min-width: 130px; max-width: 160px; font-weight: 600; background: #f8f9fa; white-space: normal; }
+    .th-day, .th-dow { min-width: 18px; max-width: 22px; font-size: 8px; background: #1a3a5c; color: #fff; }
+    .th-weekend { background: #c0392b; }
+    .th-days, .th-sig { background: #1a3a5c; color: #fff; min-width: 36px; font-size: 9px; }
+    .td-days { font-weight: 700; color: #1a3a5c; }
+    .td-sig { min-width: 60px; }
+    .td-group { background: #e8f0fe; font-weight: 700; color: #1a3a5c; text-align: left; padding: 3px 6px; font-size: 10px; }
+    .td-empty { text-align: center; color: #aaa; padding: 20px; font-size: 12px; }
+    .day-work { background: #eafaf1; color: #1a6b3c; font-weight: 700; }
+    .day-off { background: #f9f9f9; color: #bbb; }
+    .day-holiday { background: #fef3e2; color: #e67e22; font-weight: 700; }
+    .sched-legend { margin-top: 10px; font-size: 10px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    .leg-item { background: #f8f9fa; border: 1px solid #ddd; padding: 2px 8px; border-radius: 4px; }
+    .sched-sigs { display: flex; gap: 40px; margin-top: 20px; flex-wrap: wrap; }
+    .sig-col { display: flex; flex-direction: column; gap: 2px; min-width: 160px; }
+    .sig-label { font-size: 10px; color: #888; }
+    .sig-name { font-size: 11px; font-weight: 700; color: #1a3a5c; border-bottom: 1px solid #333; padding-bottom: 2px; min-width: 140px; }
+    .sig-title { font-size: 10px; color: #555; }
+  </style>
+    <h3>Raw Extracted Text</h3>
+       <pre style="font-size:9pt;background:#f5f5f5;padding:10px;border:1px solid #ddd;white-space:pre-wrap">﻿"GEAMH HRIS ï¿½ AI Scan Export"
+File Name, MAY-SCHEDULE-2026-IMIS-Office-2.xlsx
+Document Type, Schedule
+File Size, 12.3 KB
+AI Confidence, 95%
+Status, Processed
+
+Field, Value
+row Count, 20
+
+--- Raw Text ---
+ 																																		
+GENERAL EMILIO AGUINALDO MEMORIAL HOSPITAL																																		
+Korea-Philippines Friendship Health Project																																		
+Trece Martires City																																		
+Schedule of Duties																																		
+May 1-31, 2026																																		
+Department/Unit:	Electronic Medical Records (EMR)																															
+NAME OF EMPLOYEE	1	2	3	4	5	6	7	8	9	10	11	12	13	14	15	16	17	18	19	20	21	22	23	24	25	26	27	28	29	30	31	No. of days	Signature
+	FRI	SAT	SUN	MON	TUE 	WED	THU	FRI	SAT	SUN	MON	TUE	WED	THU	FRI	SAT	SUN	MON	TUE	WED	THU	FRI	SAT	SUN	MON	TUE	WED	THU	FRI	SAT	SUN		
+KPFP																																	
+HERBERT C. LUGAY	H	O	O	85	85	85	85	85	O	O	85	85	85	85	O	O	85	85	85	85	85	85	O	O	85	85	85	85	85	O	O	20	
+JULY A. BATES	85	85	O	O	85	85	85	85	85	O	O	85	85	O	85	85	O	O	85	85	O	85	85	O	O	85	85	85	85	85	O	20	
+GEAMH																																	
+RHEANBELLE C. AGRIMANO	O	O	85	85	85	85	85	O	O	85	85	85	85	85	O	O	85	85	O	85	85	O	O	85	85	85	85	85	O	O	85	20	
+	LEGEND:			85	-	8:00am to 5:00 pm														H	-	Holiday
+				O	-	Off Duty															
+Prepared by:							Approved by:													Noted by:
+HERBERT C. LUGAY							ALLAN MIRANDILLA													NONIE JOHN L. DALISAY MD, FPOGS, MBA
+Administrative Assistant VI							Records Officer I													Provincial Health Officer II
+Computer Operator III							OIC-Personnel Section
+</pre>
+  </body></html>

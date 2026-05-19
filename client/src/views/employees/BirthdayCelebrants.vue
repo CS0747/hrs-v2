@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import AppSelect from '@/components/AppSelect.vue'
-import { printBirthdayCelebrants } from '@/utils/print'
 
 const API = 'http://localhost/hrs-v2/server/api/birthday_celebrants.php'
 
@@ -95,9 +94,6 @@ function getAgeThisYear(e) {
       </div>
       <div class="toolbar-right">
         <span class="record-count">{{ displayList.length }} celebrant(s)</span>
-        <button class="btn btn-secondary" @click="printBirthdayCelebrants(displayList, currentMonthName)">
-          🖨 Print
-        </button>
       </div>
     </div>
 

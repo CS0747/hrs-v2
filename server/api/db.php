@@ -112,7 +112,7 @@ function denyAccess($module, $action) {
 // CORS headers (adjust origin for production)
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-User-ID');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;

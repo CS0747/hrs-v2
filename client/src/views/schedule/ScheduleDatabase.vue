@@ -6,7 +6,10 @@ import { useAuthStore } from '@/stores/auth'
 import { usePermissions } from '@/composables/usePermissions'
 import { useNotificationStore } from '@/stores/notifications'
 import { onMounted } from 'vue'
-import { printSchedules } from '@/utils/print'
+import { printSchedules, printIndividualSchedule, printDepartmentSchedule, printTransmittalReport } from '@/utils/print'
+import ScheduleForm from '@/components/schedule/ScheduleForm.vue'
+import MonitoringDashboard from '@/components/schedule/MonitoringDashboard.vue'
+import ShiftLegend from '@/components/schedule/ShiftLegend.vue'
 
 const store    = useScheduleStore()
 const empStore = useEmployeeStore()
@@ -165,9 +168,35 @@ async function doSave() {
     if (editId.value) {
       await store.updateSchedule(editId.value, { ...form.value })
     } else {
-      await store.addSchedule({ ...form.value })
+      // Check if using new format with day schedules
+      if (form.value.daySchedules && Object.keys(form.value.daySchedules).length > 0) {
+        // Create individual schedules for each date with its own time and shift
+        const promises = []
+        for (const [dateKey, dayConfig] of Object.entries(form.value.daySchedules)) {
+          promises.push(store.addSchedule({
+            employeeNo: form.value.employeeNo,
+            employeeName: form.value.employeeName,
+            department: form.value.department,
+            scheduleDate: dateKey,
+            startTime: dayConfig.startTime,
+            endTime: dayConfig.endTime,
+            shiftCode: dayConfig.shiftCode,
+            shiftName: dayConfig.shiftCode === 'OFF' ? 'Off Duty' : 
+                       dayConfig.shiftCode === '85' ? 'Standard' :
+                       dayConfig.shiftCode === '62' ? 'Morning' :
+                       dayConfig.shiftCode === '210' ? 'Evening' :
+                       dayConfig.shiftCode === '106' ? 'Night' : 'Custom',
+            remarks: form.value.remarks || ''
+          }))
+        }
+        await Promise.all(promises)
+      } else {
+        // Legacy format or single schedule
+        await store.addSchedule({ ...form.value })
+      }
     }
     showForm.value = false
+    notificationStore.success('Schedule(s) saved successfully')
   } catch (e) {
     notificationStore.error('Failed to save schedule: ' + e.message)
   } finally {
@@ -531,6 +560,71 @@ function selectAllMonth() {
     if (!form.value.selectedDates.includes(key)) form.value.selectedDates.push(key)
   }
 }
+
+// ── Print Functions ──────────────────────────────────────────────────────────
+function printIndividual(schedule) {
+  printIndividualSchedule(schedule, {
+    title: 'Employee Schedule',
+    includeLegend: true
+  })
+}
+
+function printDepartment() {
+  const dept = filterDept.value || 'All Departments'
+  printDepartmentSchedule(filtered.value, {
+    title: 'Department Schedule',
+    department: dept,
+    dateRange: '',
+    includeLegend: true
+  })
+}
+
+function printTransmittal() {
+  // Group schedules by department for transmittal
+  const deptGroups = {}
+  filtered.value.forEach(schedule => {
+    const dept = schedule.department || 'Unknown'
+    if (!deptGroups[dept]) {
+      deptGroups[dept] = {
+        department: dept,
+        staffCount: 0,
+        submittedCount: 0,
+        dateSubmitted: null,
+        remarks: ''
+      }
+    }
+    deptGroups[dept].staffCount++
+    if (schedule.status === 'Submitted') {
+      deptGroups[dept].submittedCount++
+      if (!deptGroups[dept].dateSubmitted && schedule.submittedDate) {
+        deptGroups[dept].dateSubmitted = schedule.submittedDate
+      }
+    }
+  })
+
+  const departments = Object.values(deptGroups)
+  printTransmittalReport(departments, {
+    title: 'Schedule Transmittal Report',
+    periodStart: '',
+    periodEnd: ''
+  })
+}
+
+// ── Monitoring Dashboard ─────────────────────────────────────────────────────
+const showMonitoring = ref(false)
+const monitoringFilters = ref({})
+
+function toggleMonitoring() {
+  showMonitoring.value = !showMonitoring.value
+}
+
+function onMonitoringFilterChanged(filters) {
+  monitoringFilters.value = filters
+}
+
+function onScheduleSelected(schedule) {
+  openEdit(schedule)
+}
 </script>
 
 <template>
@@ -555,9 +649,17 @@ function selectAllMonth() {
         />
       </div>
       <div class="toolbar-right">
-        <button class="btn btn-secondary" @click="printSchedules(filtered, { Department: filterDept, Shift: filterShift })">
-          🖨 Print
+        <button class="btn btn-secondary" @click="toggleMonitoring">
+          📊 {{ showMonitoring ? 'Hide' : 'Show' }} Monitoring
         </button>
+        <div class="btn-group">
+          <button class="btn btn-secondary" @click="printDepartment">
+            🖨 Print Department
+          </button>
+          <button class="btn btn-secondary" @click="printTransmittal">
+            📋 Print Transmittal
+          </button>
+        </div>
         <button v-if="hasPermission('Schedule Database', 'Add')" class="btn btn-primary" @click="openAdd">
           <span class="icon-svg" v-html="svgIcons.add"></span> Add Schedule
         </button>
@@ -706,6 +808,20 @@ function selectAllMonth() {
       </div><!-- end cal-right-panel -->
     </div><!-- end cal-layout -->
 
+    <!-- ── Monitoring Dashboard ──────────────────────────────────────────── -->
+    <Transition name="slide-down">
+      <MonitoringDashboard
+        v-if="showMonitoring"
+        :schedules="filtered"
+        :departments="empStore.departments"
+        :shifts="store.shifts"
+        :filters="monitoringFilters"
+        @filter-changed="onMonitoringFilterChanged"
+        @schedule-selected="onScheduleSelected"
+        style="margin-top: 20px;"
+      />
+    </Transition>
+
     <!-- ── Add / Edit Modal ───────────────────────────────────────────────── -->
     <div v-if="showForm" class="modal-overlay" @click.self="showForm = false">
       <div class="modal">
@@ -717,102 +833,10 @@ function selectAllMonth() {
         </div>
 
         <div class="modal-body">
-          <div class="form-grid">
-
-            <!-- Employee searchable combobox -->
-            <div class="form-group full">
-              <label>Employee</label>
-              <div class="emp-combobox">
-                <input
-                  v-model="empSearch"
-                  class="emp-search-input"
-                  placeholder="Type name or employee no..."
-                  @input="onEmpSearchInput"
-                  @focus="empDropOpen = true"
-                  @blur="onEmpBlur"
-                  autocomplete="off"
-                />
-                <div v-if="empDropOpen && filteredEmps.length" class="emp-dropdown">
-                  <div
-                    v-for="emp in filteredEmps"
-                    :key="emp.id"
-                    class="emp-option"
-                    @mousedown.prevent="selectEmployee(emp)"
-                  >
-                    <span class="emp-opt-no">{{ emp.employeeNo }}</span>
-                    <span class="emp-opt-name">{{ emp.lastName }}, {{ emp.firstName }}</span>
-                    <span class="emp-opt-dept">{{ emp.department }}</span>
-                  </div>
-                </div>
-                <div v-if="empDropOpen && !filteredEmps.length" class="emp-dropdown">
-                  <div class="emp-option-empty">No employees found.</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label>Employee Name</label>
-              <input v-model="form.employeeName" readonly class="readonly-input" />
-            </div>
-            <div class="form-group">
-              <label>Department</label>
-              <input v-model="form.department" readonly class="readonly-input" />
-            </div>
-            <div class="form-group">
-              <label>Shift</label>
-              <AppSelect v-model="form.shift" :options="store.shifts" @update:modelValue="onShiftChange" />
-            </div>
-            <div class="form-group">
-              <label>Shift Time</label>
-              <input v-model="form.shiftTime" />
-            </div>
-            <div class="form-group">
-              <label>Effective Date</label>
-              <input v-model="form.effectiveDate" type="date" />
-            </div>
-            <div class="form-group">
-              <label>End Date</label>
-              <input v-model="form.endDate" type="date" />
-            </div>
-
-            <!-- Month calendar date picker -->
-            <div class="form-group full">
-              <div class="form-cal-header">
-                <label>Specific Dates <span class="days-count">(click dates to select — overrides day pattern)</span></label>
-                <div class="form-cal-actions">
-                  <button type="button" class="fcal-action-btn" @click="selectAllMonth">Select All Month</button>
-                  <button type="button" class="fcal-action-btn danger" @click="clearFormDates" :disabled="!(form.selectedDates ?? []).length">Clear</button>
-                </div>
-              </div>
-              <div class="form-cal">
-                <div class="form-cal-nav">
-                  <button type="button" class="cal-nav-btn" @click="formCalPrev">&#8249;</button>
-                  <span class="form-cal-month-label">{{ formCalLabel }}</span>
-                  <button type="button" class="cal-nav-btn" @click="formCalNext">&#8250;</button>
-                </div>
-                <div class="form-cal-grid">
-                  <div v-for="h in ['Mo','Tu','We','Th','Fr','Sa','Su']" :key="h" class="form-cal-dow">{{ h }}</div>
-                  <template v-for="(cell, idx) in formCalGrid" :key="idx">
-                    <div
-                      v-if="cell"
-                      class="form-cal-day"
-                      :class="{
-                        'fcal-selected': isDateSelected(cell),
-                        'fcal-today': isToday(cell),
-                        'fcal-weekend': cell.getDay() === 0 || cell.getDay() === 6,
-                      }"
-                      @click="toggleFormDate(cell)"
-                    >{{ cell.getDate() }}</div>
-                    <div v-else class="form-cal-day fcal-empty"></div>
-                  </template>
-                </div>
-                <div v-if="(form.selectedDates ?? []).length" class="fcal-selected-count">
-                  {{ form.selectedDates.length }} date(s) selected
-                </div>
-              </div>
-            </div>
-
-          </div>
+          <ScheduleForm
+            v-model="form"
+            :edit-mode="!!editId"
+          />
         </div>
 
         <div class="modal-footer">
@@ -1217,4 +1241,12 @@ function selectAllMonth() {
 .fcal-weekend { color:#999; }
 .fcal-selected { background:#1a3a5c !important; color:#fff !important; border-color:#1a3a5c; font-weight:700; }
 .fcal-selected-count { margin-top:6px; font-size:10px; color:#1a6b3c; font-weight:600; text-align:center; }
+
+/* ── Slide down transition ── */
+.slide-down-enter-active, .slide-down-leave-active { transition: all 0.3s ease; }
+.slide-down-enter-from { opacity: 0; transform: translateY(-20px); }
+.slide-down-leave-to { opacity: 0; transform: translateY(-20px); }
+
+/* ── Button group ── */
+.btn-group { display: flex; gap: 8px; }
 </style>

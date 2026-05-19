@@ -1,10 +1,19 @@
 ﻿<?php
+// Enable error logging for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/../logs/ai_scan_errors.log');
+
 require_once 'db.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $conn   = getConnection();
 $action = $_GET['action'] ?? '';
 $userId = (int)($_SERVER['HTTP_X_USER_ID'] ?? 0);
+
+// Log request for debugging
+error_log("AI Scan API - Method: $method, Action: $action, UserID: $userId");
 
 // Map HTTP methods to actions
 $actionMap = [
@@ -16,8 +25,11 @@ $permAction = $actionMap[$method] ?? 'View';
 
 // Check permission before processing request
 if (!checkPermission($conn, $userId, 'AI Scanning Tools', $permAction)) {
+    error_log("AI Scan API - Permission denied for user $userId, module: AI Scanning Tools, action: $permAction");
     denyAccess('AI Scanning Tools', $permAction);
 }
+
+try {
 
 switch ($method) {
 
@@ -32,7 +44,18 @@ switch ($method) {
             $row['extracted_data'] = $row['extracted_data'] ? json_decode($row['extracted_data'], true) : null;
             sendJson($row);
         } else {
+            // Check if table exists
+            $tableCheck = $conn->query("SHOW TABLES LIKE 'ai_scanned_docs'");
+            if ($tableCheck->num_rows === 0) {
+                // Table doesn't exist, return empty array
+                sendJson([]);
+                break;
+            }
+            
             $result = $conn->query('SELECT * FROM ai_scanned_docs ORDER BY created_at DESC LIMIT 200');
+            if (!$result) {
+                sendError('Database query failed: ' . $conn->error, 500);
+            }
             $rows   = $result->fetch_all(MYSQLI_ASSOC);
             foreach ($rows as &$r) {
                 $r['extracted_data'] = $r['extracted_data'] ? json_decode($r['extracted_data'], true) : null;
@@ -187,6 +210,11 @@ switch ($method) {
         sendError('Method not allowed', 405);
 }
 
+} catch (Exception $e) {
+    error_log("AI Scan API Error: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+    sendError('Server error: ' . $e->getMessage(), 500);
+}
+
 $conn->close();
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -209,6 +237,32 @@ function detectDocType(string $name): string {
 
 function parseText(string $text, string $docType): array {
     $lines  = array_filter(array_map('trim', explode("\n", $text)));
+    
+    // ── Schedule of Duties — use specialized parser ──────────────────────────────
+    if (preg_match('/schedule of duties|schedule of duty/i', $text) || $docType === 'Schedule') {
+        $parsed = parseScheduleOfDutiesServer($text, $lines);
+        // Flatten for extracted_data summary
+        $allEmps = [];
+        foreach ($parsed['groups'] as $group) {
+            foreach ($group['employees'] as $emp) {
+                $allEmps[] = $emp['name'] . ' (' . $emp['numDays'] . ' days)';
+            }
+        }
+        return [
+            'hospital'     => $parsed['hospital'],
+            'project'      => $parsed['project'],
+            'department'   => $parsed['department'],
+            'period'       => $parsed['period'],
+            'employees'    => count($allEmps),
+            'employeeList' => implode(', ', array_slice($allEmps, 0, 5)) . (count($allEmps) > 5 ? '...' : ''),
+            'preparedBy'   => $parsed['preparedBy'],
+            'approvedBy'   => $parsed['approvedBy'],
+            'notedBy'      => $parsed['notedBy'],
+            '_fullParsed'  => $parsed, // Store full parsed data for HTML rendering
+        ];
+    }
+    
+    // ── Generic document parsing ──────────────────────────────────────────────────
     $result = [];
     foreach ($lines as $line) {
         if (preg_match('/(?:employee\s*name|name)[:\s]+(.+)/i',   $line, $m)) $result['employeeName'] = trim($m[1]);
@@ -225,6 +279,153 @@ function parseText(string $text, string $docType): array {
     if (empty($result)) {
         $result['textPreview'] = substr(implode(' ', array_slice(array_values($lines), 0, 5)), 0, 300);
     }
+    return $result;
+}
+
+// ── Schedule of Duties parser (SERVER-SIDE) ───────────────────────────────────
+function parseScheduleOfDutiesServer(string $text, array $lines): array {
+    $result = [
+        'docType'    => 'Schedule of Duties',
+        'hospital'   => '',
+        'project'    => '',
+        'location'   => '',
+        'period'     => '',
+        'department' => '',
+        'groups'     => [],
+        'legend'     => [],
+        'preparedBy' => '', 'preparedByTitle' => '',
+        'approvedBy' => '', 'approvedByTitle' => '',
+        'notedBy'    => '', 'notedByTitle'    => '',
+        'rawText'    => $text,
+    ];
+
+    // ── Header fields ────────────────────────────────────────────────────────────
+    for ($i = 0; $i < count($lines); $i++) {
+        $l = $lines[$i];
+        if (preg_match('/general emilio|GEAMH/i', $l) && !$result['hospital'])           $result['hospital']   = trim($l);
+        if (preg_match('/korea|friendship|health project/i', $l) && !$result['project']) $result['project']    = trim($l);
+        if (preg_match('/trece martires|city|province/i', $l) && !$result['location'])   $result['location']   = trim($l);
+        
+        if (preg_match('/schedule of duties/i', $l)) {
+            for ($j = $i + 1; $j < min($i + 4, count($lines)); $j++) {
+                if (isset($lines[$j]) && preg_match('/\d{4}|january|february|march|april|may|june|july|august|september|october|november|december/i', $lines[$j])) {
+                    $result['period'] = trim($lines[$j]);
+                    break;
+                }
+            }
+        }
+        
+        if (preg_match('/department[\/\s]*unit/i', $l)) {
+            $val = trim(preg_replace('/department[\/\s]*unit[:\s]*/i', '', $l));
+            $result['department'] = $val ?: (isset($lines[$i+1]) ? trim($lines[$i+1]) : '');
+        }
+        if (preg_match('/electronic medical|EMR\b/i', $l) && !$result['department']) $result['department'] = trim($l);
+
+        if (preg_match('/prepared\s*by/i', $l)) {
+            $result['preparedBy']      = isset($lines[$i+1]) ? trim($lines[$i+1]) : '';
+            $result['preparedByTitle'] = isset($lines[$i+2]) ? trim($lines[$i+2]) : '';
+        }
+        if (preg_match('/approved\s*by/i', $l)) {
+            $result['approvedBy']      = isset($lines[$i+1]) ? trim($lines[$i+1]) : '';
+            $result['approvedByTitle'] = isset($lines[$i+2]) ? trim($lines[$i+2]) : '';
+        }
+        if (preg_match('/noted\s*by/i', $l)) {
+            $result['notedBy']      = isset($lines[$i+1]) ? trim($lines[$i+1]) : '';
+            $result['notedByTitle'] = isset($lines[$i+2]) ? trim($lines[$i+2]) : '';
+        }
+    }
+
+    // ── Legend ───────────────────────────────────────────────────────────────────
+    if (preg_match('/LEGEND[:\s]*([\s\S]{0,400})(?=prepared by|approved by|noted by|$)/i', $text, $legendMatch)) {
+        foreach (explode("\n", $legendMatch[1]) as $ll) {
+            $ll = trim($ll);
+            if (!$ll) continue;
+            if (preg_match('/^([A-Z0-9]+)\s*[-–]\s*(.+)$/i', $ll, $m)) {
+                $key = strtoupper(trim($m[1]));
+                $val = trim($m[2]);
+                if (preg_match('/^(85|O|H)$/', $key)) {
+                    $result['legend'][$key] = $val;
+                }
+            }
+        }
+    }
+    if (!isset($result['legend']['85'])) $result['legend']['85'] = '8:00am to 5:00pm';
+    if (!isset($result['legend']['O']))  $result['legend']['O']  = 'Off Duty';
+    if (!isset($result['legend']['H']))  $result['legend']['H']  = 'Holiday';
+
+    // ── Employee rows with group detection ───────────────────────────────────────
+    $currentGroup = ['label' => '', 'employees' => []];
+    $result['groups'][] = &$currentGroup;
+
+    foreach ($lines as $line) {
+        $trimmed = trim($line);
+        if (!$trimmed) continue;
+        
+        // Skip header/footer lines
+        if (preg_match('/name of employee|department\/unit|schedule of|^legend|prepared by|approved by|noted by|^signature$|no\.\s*of\s*days|^fri$|^sat$|^sun$|^mon$|^tue$|^wed$|^thu$/i', $trimmed)) continue;
+
+        // Group label
+        if (preg_match('/^(KPFP|GEAMH|KP|GE|PHO|OPHO|MAB|DIALYSIS)$/i', $trimmed)) {
+            $currentGroup = ['label' => strtoupper($trimmed), 'employees' => []];
+            $result['groups'][] = &$currentGroup;
+            continue;
+        }
+
+        // ── Enhanced employee row detection ────────────────────────────────────────
+        // Look for name followed by schedule codes
+        if (!preg_match('/^([A-Z][A-Za-z\s,\.\'\-]+?)(?=\s+(?:85|8[5S]|[OoHh0]|\[|\(|\d{1,2}\s+\d{1,2}))/u', $trimmed, $nameMatch)) continue;
+        
+        $namePart = trim($nameMatch[1]);
+        if (strlen($namePart) < 5 || preg_match('/^\d/', $namePart) || preg_match('/^(LEGEND|PREPARED|APPROVED|NOTED)/i', $namePart)) continue;
+
+        $rest = trim(substr($trimmed, strlen($namePart)));
+
+        // Extract schedule codes with improved pattern matching
+        $codes = [];
+        $tokens = preg_split('/[\s\[\]\(\)\|,\/\\\\]+/', $rest, -1, PREG_SPLIT_NO_EMPTY);
+        
+        foreach ($tokens as $tok) {
+            $t = strtoupper(trim($tok));
+            
+            // Work day: 85, 8S, 851
+            if (preg_match('/^8[5S5]1?$/', $t)) {
+                $codes[] = '85';
+            }
+            // Off duty: O, 0, OO, 00
+            elseif (preg_match('/^[Oo0]{1,2}$/', $t)) {
+                $codes[] = 'O';
+            }
+            // Holiday: H
+            elseif ($t === 'H') {
+                $codes[] = 'H';
+            }
+        }
+
+        // Must have at least 10 schedule codes
+        if (count($codes) < 10) continue;
+
+        // Extract number of days
+        $numDays = count(array_filter($codes, function($c) { return $c === '85'; }));
+        if (preg_match('/\b([12]?\d)\b(?=[^0-9]*$)/', $rest, $numMatch)) {
+            $numDays = (int)$numMatch[1];
+        }
+
+        // Pad to 31 days
+        while (count($codes) < 31) $codes[] = '';
+        $schedule = array_slice($codes, 0, 31);
+
+        $currentGroup['employees'][] = [
+            'name'     => $namePart,
+            'schedule' => $schedule,
+            'numDays'  => $numDays,
+        ];
+    }
+
+    // Remove empty groups
+    $result['groups'] = array_values(array_filter($result['groups'], function($g) {
+        return count($g['employees']) > 0;
+    }));
+
     return $result;
 }
 
@@ -604,11 +805,11 @@ function ocrSpaceScan(string $filePath, string $fileName): array {
     $params = [
         'apikey'              => $apiKey,
         'language'            => 'eng',
-        'isOverlayRequired'   => 'true',
+        'isOverlayRequired'   => 'false',  // Disable overlay for faster processing
         'detectOrientation'   => 'true',
         'scale'               => 'true',
-        'OCREngine'           => '2',
-        'isTable'             => 'true',
+        'OCREngine'           => '2',      // Engine 2 is more accurate for tables
+        'isTable'             => 'true',   // Enable table detection
         'filetype'            => strtoupper(pathinfo($fileName, PATHINFO_EXTENSION)),
     ];
     
@@ -703,14 +904,16 @@ function preprocessImageForOCR(string $filePath): ?string {
     $width  = imagesx($img);
     $height = imagesy($img);
 
-    // Step 1: Upscale if image is too small (min 1500px on longest side)
-    $minSize = 1500;
+    // Step 1: Upscale if image is too small (min 2000px on longest side for better OCR)
+    $minSize = 2000;
     $maxDim  = max($width, $height);
     if ($maxDim < $minSize) {
         $scale     = $minSize / $maxDim;
         $newWidth  = (int)($width * $scale);
         $newHeight = (int)($height * $scale);
         $scaled    = imagecreatetruecolor($newWidth, $newHeight);
+        
+        // Use bicubic interpolation for better quality
         imagecopyresampled($scaled, $img, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
         imagedestroy($img);
         $img    = $scaled;
@@ -720,7 +923,7 @@ function preprocessImageForOCR(string $filePath): ?string {
 
     // Step 2: Convert to grayscale and enhance contrast
     imagefilter($img, IMG_FILTER_GRAYSCALE);
-    imagefilter($img, IMG_FILTER_CONTRAST, -15); // Increase contrast
+    imagefilter($img, IMG_FILTER_CONTRAST, -20); // Increase contrast more aggressively
 
     // Step 3: Sharpen for better edge detection
     $sharpenMatrix = [
@@ -732,8 +935,67 @@ function preprocessImageForOCR(string $filePath): ?string {
     $offset  = 0;
     imageconvolution($img, $sharpenMatrix, $divisor, $offset);
 
-    // Step 4: Slight brightness adjustment
-    imagefilter($img, IMG_FILTER_BRIGHTNESS, 10);
+    // Step 4: Brightness adjustment to ensure text is dark on light background
+    imagefilter($img, IMG_FILTER_BRIGHTNESS, 15);
+
+    // Step 5: Apply adaptive threshold for better text separation
+    // This is a simplified version - for production, consider using ImageMagick
+    $imageData = [];
+    for ($y = 0; $y < $height; $y++) {
+        for ($x = 0; $x < $width; $x++) {
+            $rgb = imagecolorat($img, $x, $y);
+            $gray = ($rgb >> 16) & 0xFF; // Already grayscale, just extract value
+            $imageData[$y][$x] = $gray;
+        }
+    }
+
+    // Apply simple threshold (Otsu's method approximation)
+    $histogram = array_fill(0, 256, 0);
+    foreach ($imageData as $row) {
+        foreach ($row as $pixel) {
+            $histogram[$pixel]++;
+        }
+    }
+
+    $total = $width * $height;
+    $sum = 0;
+    for ($i = 0; $i < 256; $i++) {
+        $sum += $i * $histogram[$i];
+    }
+
+    $sumB = 0;
+    $wB = 0;
+    $wF = 0;
+    $maxVariance = 0;
+    $threshold = 0;
+
+    for ($t = 0; $t < 256; $t++) {
+        $wB += $histogram[$t];
+        if ($wB == 0) continue;
+
+        $wF = $total - $wB;
+        if ($wF == 0) break;
+
+        $sumB += $t * $histogram[$t];
+        $mB = $sumB / $wB;
+        $mF = ($sum - $sumB) / $wF;
+
+        $variance = $wB * $wF * ($mB - $mF) * ($mB - $mF);
+
+        if ($variance > $maxVariance) {
+            $maxVariance = $variance;
+            $threshold = $t;
+        }
+    }
+
+    // Apply threshold
+    for ($y = 0; $y < $height; $y++) {
+        for ($x = 0; $x < $width; $x++) {
+            $value = $imageData[$y][$x] >= $threshold ? 255 : 0;
+            $color = imagecolorallocate($img, $value, $value, $value);
+            imagesetpixel($img, $x, $y, $color);
+        }
+    }
 
     // Save processed image
     $tempPath = sys_get_temp_dir() . '/ocr_processed_' . uniqid() . '.png';
@@ -747,10 +1009,11 @@ function preprocessImageForOCR(string $filePath): ?string {
 function postProcessOCRText(string $text): string {
     // Common OCR mistakes and corrections
     $corrections = [
-        // Number confusions
-        '/\b[Oo0]{2}\b/'      => 'O',  // oo or 00 → O (Off Duty)
-        '/\b8[5S]\b/'         => '85', // 8S → 85
+        // Number confusions - be more aggressive
+        '/\b[Oo0]{2,}\b/'     => 'O',  // oo, 00, ooo → O (Off Duty)
+        '/\b8[5S5]\b/'        => '85', // 8S, 85 → 85
         '/\b[Il1]\s*[Il1]\b/' => '11', // Il or 1l → 11
+        '/\b[0O](?=\s|$)/'    => 'O',  // Standalone 0 or O → O
         
         // Letter confusions in common words
         '/\bH[0O]UR[S5]?\b/i'     => 'HOURS',
@@ -760,11 +1023,21 @@ function postProcessOCRText(string $text): string {
         '/\bEMPL[O0]YEE\b/i'      => 'EMPLOYEE',
         '/\bSCHEDULE\b/i'         => 'SCHEDULE',
         '/\bDUT[I1]ES\b/i'        => 'DUTIES',
+        '/\bS[I1]GNATURE\b/i'     => 'SIGNATURE',
         
         // Common schedule-related terms
         '/\bGE[A4]MH\b/i'         => 'GEAMH',
         '/\bKPFP\b/i'             => 'KPFP',
         '/\bOPH[O0]\b/i'          => 'OPHO',
+        '/\bM[A4]B\b/i'           => 'MAB',
+        '/\bDI[A4]LYSIS\b/i'      => 'DIALYSIS',
+        
+        // Fix common table separators
+        '/\s*\|\s*/'              => ' ',  // Remove pipe separators
+        '/\s*\[\s*/'              => ' ',  // Remove brackets
+        '/\s*\]\s*/'              => ' ',
+        '/\s*\(\s*/'              => ' ',  // Remove parentheses
+        '/\s*\)\s*/'              => ' ',
         
         // Remove excessive spaces
         '/\s{3,}/'                => '  ', // 3+ spaces → 2 spaces
@@ -777,13 +1050,17 @@ function postProcessOCRText(string $text): string {
 
     // Fix common character substitutions in table data
     $text = str_replace([
-        '|85|', '[85]', '(85)', '{85}',  // Bracketed 85
-        '|O|', '[O]', '(O)', '{O}',      // Bracketed O
-        '|H|', '[H]', '(H)', '{H}',      // Bracketed H
+        '|85|', '[85]', '(85)', '{85}', '«85»',  // Bracketed 85
+        '|O|', '[O]', '(O)', '{O}', '«O»',       // Bracketed O
+        '|H|', '[H]', '(H)', '{H}', '«H»',       // Bracketed H
+        '8S', '8s', '85|', '|85',                // 85 variations
+        'oO', 'Oo', 'oo', '00',                  // O variations
     ], [
+        '85', '85', '85', '85', '85',
+        'O', 'O', 'O', 'O', 'O',
+        'H', 'H', 'H', 'H', 'H',
         '85', '85', '85', '85',
         'O', 'O', 'O', 'O',
-        'H', 'H', 'H', 'H',
     ], $text);
 
     // Clean up line breaks
@@ -796,6 +1073,14 @@ function postProcessOCRText(string $text): string {
 // ── Build HTML from OCR text ──────────────────────────────────────────────────
 function buildOcrHtml(string $text): string {
     if (!$text) return '';
+    
+    // Detect Schedule of Duties — render structured table
+    if (preg_match('/schedule of duties|schedule of duty/i', $text)) {
+        $lines = array_filter(array_map('trim', explode("\n", $text)));
+        $parsed = parseScheduleOfDutiesServer($text, $lines);
+        return buildScheduleHtml($parsed);
+    }
+    
     $lines = explode("\n", $text);
     $html  = '<div class="docx-body">';
     foreach ($lines as $line) {
@@ -815,5 +1100,150 @@ function buildOcrHtml(string $text): string {
         }
     }
     $html .= '</div>';
+    return $html;
+}
+
+// ── Schedule of Duties HTML renderer ──────────────────────────────────────────
+function buildScheduleHtml(array $parsed): string {
+    $days = range(1, 31);
+    
+    // Count total employees
+    $totalEmps = 0;
+    foreach ($parsed['groups'] as $g) {
+        $totalEmps += count($g['employees']);
+    }
+
+    $html = '<div class="sched-doc">
+        <div class="sched-header">
+            <div class="sched-hosp">' . htmlspecialchars($parsed['hospital'], ENT_QUOTES, 'UTF-8') . '</div>';
+    
+    if ($parsed['project'])  $html .= '<div class="sched-sub">' . htmlspecialchars($parsed['project'], ENT_QUOTES, 'UTF-8') . '</div>';
+    if ($parsed['location']) $html .= '<div class="sched-sub">' . htmlspecialchars($parsed['location'], ENT_QUOTES, 'UTF-8') . '</div>';
+    
+    $html .= '<div class="sched-title">Schedule of Duties</div>
+            <div class="sched-period">' . htmlspecialchars($parsed['period'], ENT_QUOTES, 'UTF-8') . '</div>
+        </div>
+
+        <div class="sched-dept-row">
+            <span><strong>Department/Unit:</strong> ' . htmlspecialchars($parsed['department'], ENT_QUOTES, 'UTF-8') . '</span>
+        </div>
+
+        <div class="sched-table-wrap">
+        <table class="sched-table">
+            <thead>
+                <tr class="tr-days">
+                    <th rowspan="2" class="th-name">NAME OF EMPLOYEE</th>';
+    
+    foreach ($days as $d) {
+        $html .= '<th class="th-day">' . $d . '</th>';
+    }
+    
+    $html .= '<th rowspan="2" class="th-days">No. of<br>days</th>
+                    <th rowspan="2" class="th-sig">Signature</th>
+                </tr>
+                <tr class="tr-daynames">';
+    
+    foreach ($days as $d) {
+        $dow = ['FRI','SAT','SUN','MON','TUE','WED','THU'];
+        $dowName = $dow[($d-1) % 7];
+        $isWeekend = in_array($dowName, ['SAT','SUN']);
+        $html .= '<th class="th-dow' . ($isWeekend ? ' th-weekend' : '') . '">' . $dowName . '</th>';
+    }
+    
+    $html .= '</tr>
+            </thead>
+            <tbody>';
+
+    if ($totalEmps === 0) {
+        // Show raw OCR text
+        $rawLines = array_filter(explode("\n", $parsed['rawText'] ?? ''));
+        $html .= '<tr><td colspan="' . (count($days) + 3) . '" class="td-empty">
+            <div style="text-align:left;padding:8px;">
+                <strong style="color:#c0392b;">⚠ Employee schedule rows could not be auto-extracted.</strong><br>
+                <small style="color:#888;">The OCR captured the following text — employee data may be present but in an unexpected format:</small>
+                <pre style="margin-top:8px;font-size:10px;background:#f8f9fa;padding:10px;border-radius:6px;max-height:200px;overflow-y:auto;white-space:pre-wrap;text-align:left;">' . htmlspecialchars(implode("\n", $rawLines), ENT_QUOTES, 'UTF-8') . '</pre>
+            </div>
+        </td></tr>';
+    } else {
+        foreach ($parsed['groups'] as $group) {
+            if ($group['label']) {
+                $html .= '<tr><td colspan="' . (count($days) + 3) . '" class="td-group">' . htmlspecialchars($group['label'], ENT_QUOTES, 'UTF-8') . '</td></tr>';
+            }
+            foreach ($group['employees'] as $emp) {
+                $html .= '<tr><td class="td-name">' . htmlspecialchars($emp['name'], ENT_QUOTES, 'UTF-8') . '</td>';
+                for ($d = 0; $d < 31; $d++) {
+                    $code = isset($emp['schedule'][$d]) ? $emp['schedule'][$d] : '';
+                    $cls  = $code === '85' ? 'day-work' : ($code === 'H' ? 'day-holiday' : ($code === 'O' ? 'day-off' : ''));
+                    $html .= '<td class="td-day ' . $cls . '">' . htmlspecialchars($code, ENT_QUOTES, 'UTF-8') . '</td>';
+                }
+                $html .= '<td class="td-days">' . $emp['numDays'] . '</td>';
+                $html .= '<td class="td-sig"></td>';
+                $html .= '</tr>';
+            }
+        }
+    }
+
+    $html .= '</tbody></table></div>';
+
+    // Legend
+    if (!empty($parsed['legend'])) {
+        $html .= '<div class="sched-legend"><strong>LEGEND:</strong>';
+        foreach ($parsed['legend'] as $k => $v) {
+            $html .= '<span class="leg-item"><strong>' . htmlspecialchars($k, ENT_QUOTES, 'UTF-8') . '</strong> &nbsp;-&nbsp; ' . htmlspecialchars($v, ENT_QUOTES, 'UTF-8') . '</span>';
+        }
+        $html .= '</div>';
+    }
+
+    // Signatories
+    $html .= '<div class="sched-sigs">
+        <div class="sig-col">
+            <div class="sig-label">Prepared by:</div>
+            <div class="sig-name">' . htmlspecialchars($parsed['preparedBy'], ENT_QUOTES, 'UTF-8') . '</div>
+            <div class="sig-title">' . htmlspecialchars($parsed['preparedByTitle'], ENT_QUOTES, 'UTF-8') . '</div>
+        </div>
+        <div class="sig-col">
+            <div class="sig-label">Approved by:</div>
+            <div class="sig-name">' . htmlspecialchars($parsed['approvedBy'], ENT_QUOTES, 'UTF-8') . '</div>
+            <div class="sig-title">' . htmlspecialchars($parsed['approvedByTitle'], ENT_QUOTES, 'UTF-8') . '</div>
+        </div>
+        <div class="sig-col">
+            <div class="sig-label">Noted by:</div>
+            <div class="sig-name">' . htmlspecialchars($parsed['notedBy'], ENT_QUOTES, 'UTF-8') . '</div>
+            <div class="sig-title">' . htmlspecialchars($parsed['notedByTitle'], ENT_QUOTES, 'UTF-8') . '</div>
+        </div>
+    </div>
+    </div>
+
+    <style>
+        .sched-doc { font-family: Arial, sans-serif; font-size: 11px; padding: 12px; background: #fff; }
+        .sched-header { text-align: center; margin-bottom: 12px; }
+        .sched-hosp { font-size: 13px; font-weight: 700; color: #1a3a5c; }
+        .sched-sub { font-size: 11px; color: #555; }
+        .sched-title { font-size: 12px; font-weight: 700; margin-top: 8px; text-decoration: underline; }
+        .sched-period { font-size: 12px; font-weight: 700; text-decoration: underline; }
+        .sched-dept-row { margin-bottom: 8px; font-size: 11px; }
+        .sched-table-wrap { overflow-x: auto; }
+        .sched-table { border-collapse: collapse; font-size: 9px; min-width: 100%; }
+        .sched-table th, .sched-table td { border: 1px solid #999; padding: 2px 3px; text-align: center; white-space: nowrap; }
+        .th-name, .td-name { text-align: left; min-width: 130px; max-width: 160px; font-weight: 600; background: #f8f9fa; white-space: normal; }
+        .th-day, .th-dow { min-width: 18px; max-width: 22px; font-size: 8px; background: #1a3a5c; color: #fff; }
+        .th-weekend { background: #c0392b; }
+        .th-days, .th-sig { background: #1a3a5c; color: #fff; min-width: 36px; font-size: 9px; }
+        .td-days { font-weight: 700; color: #1a3a5c; }
+        .td-sig { min-width: 60px; }
+        .td-group { background: #e8f0fe; font-weight: 700; color: #1a3a5c; text-align: left; padding: 3px 6px; font-size: 10px; }
+        .td-empty { text-align: center; color: #aaa; padding: 20px; font-size: 12px; }
+        .day-work { background: #eafaf1; color: #1a6b3c; font-weight: 700; }
+        .day-off { background: #f9f9f9; color: #bbb; }
+        .day-holiday { background: #fef3e2; color: #e67e22; font-weight: 700; }
+        .sched-legend { margin-top: 10px; font-size: 10px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+        .leg-item { background: #f8f9fa; border: 1px solid #ddd; padding: 2px 8px; border-radius: 4px; }
+        .sched-sigs { display: flex; gap: 40px; margin-top: 20px; flex-wrap: wrap; }
+        .sig-col { display: flex; flex-direction: column; gap: 2px; min-width: 160px; }
+        .sig-label { font-size: 10px; color: #888; }
+        .sig-name { font-size: 11px; font-weight: 700; color: #1a3a5c; border-bottom: 1px solid #333; padding-bottom: 2px; min-width: 140px; }
+        .sig-title { font-size: 10px; color: #555; }
+    </style>';
+
     return $html;
 }

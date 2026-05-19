@@ -1,5 +1,6 @@
 <?php
 require_once 'db.php';
+require_once 'notification_helpers.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $conn   = getConnection();
@@ -103,7 +104,15 @@ switch ($method) {
             $data['remarks']
         );
         $stmt->execute();
-        sendJson(['id' => $conn->insert_id, 'message' => 'Leave record created'], 201);
+        
+        $leaveId = $conn->insert_id;
+        $employeeName = $data['employee_name'];
+        $leaveType = $data['leave_type'];
+        
+        // Notify admins about new leave request
+        notifyLeaveRequest($conn, $employeeName, $leaveType, $leaveId);
+        
+        sendJson(['id' => $leaveId, 'message' => 'Leave record created'], 201);
         break;
 
     case 'PUT':

@@ -27,3 +27,56 @@ export function createAuthFetch() {
         return originalFetch.call(this, url, options)
     }
 }
+
+// API client for making requests
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost/hrs-v2/server/api'
+
+function getUserId() {
+    const userStr = sessionStorage.getItem('hris_user')
+    if (userStr) {
+        try {
+            const user = JSON.parse(userStr)
+            return user?.id || null
+        } catch (e) {
+            return null
+        }
+    }
+    return null
+}
+
+async function request(endpoint, options = {}) {
+    const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`
+
+    const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+
+    const userId = getUserId()
+    if (userId) {
+        headers['X-User-ID'] = String(userId)
+    }
+
+    const config = {
+        ...options,
+        headers
+    }
+
+    const response = await fetch(url, config)
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Request failed' }))
+        throw new Error(error.error || `HTTP ${response.status}`)
+    }
+
+    return response.json()
+}
+
+const api = {
+    get: (endpoint, options = {}) => request(endpoint, { ...options, method: 'GET' }),
+    post: (endpoint, data, options = {}) => request(endpoint, { ...options, method: 'POST', body: JSON.stringify(data) }),
+    put: (endpoint, data, options = {}) => request(endpoint, { ...options, method: 'PUT', body: JSON.stringify(data) }),
+    delete: (endpoint, options = {}) => request(endpoint, { ...options, method: 'DELETE' })
+}
+
+export default api

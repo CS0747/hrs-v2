@@ -1,5 +1,6 @@
 <?php
 require_once 'db.php';
+require_once 'notification_helpers.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $conn   = getConnection();
@@ -162,7 +163,11 @@ switch ($method) {
         );
 
         if (!$stmt->execute()) sendError('Insert failed: ' . $stmt->error, 500);
-        sendJson(['id' => $conn->insert_id, 'message' => 'Training created'], 201);
+        
+        $trainingId = $conn->insert_id;
+        notifyTrainingAdded($conn, $title, $trainingId);
+        
+        sendJson(['id' => $trainingId, 'message' => 'Training created'], 201);
         break;
 
     case 'PUT':

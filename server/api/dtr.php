@@ -1,5 +1,6 @@
 <?php
 require_once 'db.php';
+require_once 'notification_helpers.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $conn   = getConnection();
@@ -166,6 +167,9 @@ switch ($method) {
             $action, $status, $remarks, $processed_by
         );
         $hstmt->execute();
+
+        // Notify admins about DTR submission
+        notifyDTRSubmitted($conn, $employee_name, $period, $new_id);
 
         sendJson(['id' => $new_id, 'message' => 'DTR record created'], 201);
         break;

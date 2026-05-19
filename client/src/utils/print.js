@@ -658,3 +658,491 @@ export default {
   printPayrollRecords,
   printAuditLogs
 }
+
+
+/**
+ * Enhanced Print Functions for Schedule Management
+ */
+
+import { useLegendStore } from '@/stores/legend'
+
+// Get shift color from legend store
+function getShiftColor(shiftCode, department = null) {
+  const legendStore = useLegendStore()
+  const colors = legendStore.getColorForShift(shiftCode, department)
+  return colors.primary
+}
+
+// Get shift display info
+function getShiftDisplay(shiftCode, department = null) {
+  const legendStore = useLegendStore()
+  return legendStore.formatShiftDisplay(shiftCode, department)
+}
+
+// Helper function to generate legend HTML
+function getLegendHTML(department = null) {
+  const legendStore = useLegendStore()
+  const legends = legendStore.getLegendsForDepartment(department)
+
+  return legends.map(legend => `
+    <div class="legend-item">
+      <div class="legend-color" style="background: ${legend.colorPrimary}; ${legend.code === 'OFF' ? 'background: transparent; border: 2px solid ' + legend.colorPrimary + ';' : ''}"></div>
+      <span class="legend-text">${legend.code} - ${legend.timeRange}</span>
+    </div>
+  `).join('')
+}
+
+/**
+ * Print Individual Schedule
+ * @param {Object} schedule - Schedule object
+ * @param {Object} options - Print options
+ */
+export function printIndividualSchedule(schedule, options = {}) {
+  const {
+    title = 'Employee Schedule',
+    includeLegend = true
+  } = options
+
+  const shiftDisplay = getShiftDisplay(schedule.shiftCode, schedule.department)
+  const shiftColor = getShiftColor(schedule.shiftCode, schedule.department)
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>${title}</title>
+      <style>
+        @page { size: A4 portrait; margin: 15mm; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; font-size: 11pt; color: #333; }
+        
+        .header { text-align: center; margin-bottom: 20px; border-bottom: 3px solid #1a3a5c; padding-bottom: 15px; }
+        .header img { height: 60px; margin-bottom: 10px; }
+        .header h1 { font-size: 20pt; color: #1a3a5c; margin-bottom: 5px; }
+        .header p { font-size: 10pt; color: #666; }
+        
+        .employee-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .info-row { display: flex; margin-bottom: 8px; }
+        .info-label { font-weight: bold; width: 150px; color: #666; }
+        .info-value { color: #1a3a5c; font-weight: 600; }
+        
+        .schedule-details { margin-bottom: 20px; }
+        .schedule-details h3 { color: #1a3a5c; margin-bottom: 10px; border-bottom: 2px solid #e9ecef; padding-bottom: 5px; }
+        
+        .schedule-card { border: 2px solid #e9ecef; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+        .schedule-card .date { font-size: 14pt; font-weight: bold; color: #1a3a5c; margin-bottom: 10px; }
+        .schedule-card .shift-info { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+        .schedule-card .shift-badge { 
+          padding: 6px 12px; 
+          border-radius: 4px; 
+          font-weight: bold; 
+          color: #fff;
+          background: ${shiftColor};
+        }
+        .schedule-card .time-range { font-size: 12pt; color: #555; }
+        .schedule-card .status { 
+          display: inline-block;
+          padding: 4px 10px; 
+          border-radius: 12px; 
+          font-size: 10pt; 
+          font-weight: bold;
+        }
+        .status-submitted { background: #eafaf1; color: #27ae60; }
+        .status-pending { background: #fef9e7; color: #f39c12; }
+        
+        .legend { margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; }
+        .legend h4 { color: #1a3a5c; margin-bottom: 10px; font-size: 11pt; }
+        .legend-items { display: flex; flex-wrap: wrap; gap: 10px; }
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .legend-color { width: 16px; height: 16px; border-radius: 50%; border: 1px solid #ddd; }
+        .legend-text { font-size: 10pt; color: #666; }
+        
+        .footer { margin-top: 30px; text-align: center; font-size: 9pt; color: #999; border-top: 1px solid #e9ecef; padding-top: 10px; }
+        
+        @media print {
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <img src="/client/public/GEAMH LOGO.png" alt="GEAMH Logo" onerror="this.style.display='none'">
+        <h1>GEAMH HRIS</h1>
+        <p>${title}</p>
+      </div>
+      
+      <div class="employee-info">
+        <div class="info-row">
+          <span class="info-label">Employee Name:</span>
+          <span class="info-value">${schedule.employeeName}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Employee No:</span>
+          <span class="info-value">${schedule.employeeNo}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Department:</span>
+          <span class="info-value">${schedule.department}</span>
+        </div>
+      </div>
+      
+      <div class="schedule-details">
+        <h3>Schedule Details</h3>
+        <div class="schedule-card">
+          <div class="date">${new Date(schedule.scheduleDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
+          <div class="shift-info">
+            <span class="shift-badge">${shiftDisplay.code}</span>
+            <span class="time-range">${shiftDisplay.timeRange}</span>
+          </div>
+          <div>
+            <span class="status status-${(schedule.status || 'pending').toLowerCase()}">${schedule.status || 'Pending'}</span>
+          </div>
+          ${schedule.remarks ? `<div style="margin-top: 10px; color: #666;"><strong>Remarks:</strong> ${schedule.remarks}</div>` : ''}
+        </div>
+      </div>
+      
+      ${includeLegend ? `
+      <div class="legend">
+        <h4>Shift Legend</h4>
+        <div class="legend-items">
+          ${getLegendHTML(schedule.department)}
+        </div>
+      </div>
+      ` : ''}
+      
+      <div class="footer">
+        Generated on ${new Date().toLocaleString('en-US')} | GEAMH HRIS Schedule Management System
+      </div>
+    </body>
+    </html>
+  `
+
+  const printWindow = window.open('', '_blank')
+  printWindow.document.write(html)
+  printWindow.document.close()
+  printWindow.focus()
+  setTimeout(() => {
+    printWindow.print()
+  }, 250)
+}
+
+/**
+ * Print Department Schedule
+ * @param {Array} schedules - Array of schedule objects
+ * @param {Object} options - Print options
+ */
+export function printDepartmentSchedule(schedules, options = {}) {
+  const {
+    title = 'Department Schedule',
+    department = 'All Departments',
+    dateRange = '',
+    includeLegend = true
+  } = options
+
+  // Group by employee
+  const byEmployee = {}
+  schedules.forEach(schedule => {
+    const key = schedule.employeeNo
+    if (!byEmployee[key]) {
+      byEmployee[key] = {
+        employeeName: schedule.employeeName,
+        employeeNo: schedule.employeeNo,
+        department: schedule.department,
+        schedules: []
+      }
+    }
+    byEmployee[key].schedules.push(schedule)
+  })
+
+  const employees = Object.values(byEmployee)
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>${title}</title>
+      <style>
+        @page { size: A4 landscape; margin: 15mm; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; font-size: 10pt; color: #333; }
+        
+        .header { text-align: center; margin-bottom: 15px; border-bottom: 3px solid #1a3a5c; padding-bottom: 10px; }
+        .header img { height: 50px; margin-bottom: 8px; }
+        .header h1 { font-size: 18pt; color: #1a3a5c; margin-bottom: 3px; }
+        .header p { font-size: 9pt; color: #666; }
+        
+        .info-bar { display: flex; justify-content: space-between; margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 6px; }
+        .info-item { font-size: 9pt; }
+        .info-label { font-weight: bold; color: #666; }
+        .info-value { color: #1a3a5c; font-weight: 600; }
+        
+        table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+        thead { background: #1a3a5c; color: #fff; }
+        th { padding: 8px 6px; text-align: left; font-weight: 600; font-size: 9pt; border: 1px solid #fff; }
+        td { padding: 6px; border: 1px solid #e9ecef; font-size: 9pt; }
+        tbody tr:nth-child(even) { background: #f8f9fa; }
+        
+        .emp-name { font-weight: 600; color: #1a3a5c; }
+        .emp-no { font-size: 8pt; color: #888; font-family: monospace; }
+        .shift-badge { 
+          display: inline-block;
+          padding: 3px 8px; 
+          border-radius: 3px; 
+          font-weight: bold; 
+          font-size: 8pt;
+          color: #fff;
+        }
+        .status-badge {
+          display: inline-block;
+          padding: 2px 6px;
+          border-radius: 8px;
+          font-size: 8pt;
+          font-weight: bold;
+        }
+        .status-submitted { background: #eafaf1; color: #27ae60; }
+        .status-pending { background: #fef9e7; color: #f39c12; }
+        
+        .legend { margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 6px; page-break-inside: avoid; }
+        .legend h4 { color: #1a3a5c; margin-bottom: 8px; font-size: 10pt; }
+        .legend-items { display: flex; flex-wrap: wrap; gap: 8px; }
+        .legend-item { display: flex; align-items: center; gap: 5px; }
+        .legend-color { width: 14px; height: 14px; border-radius: 50%; border: 1px solid #ddd; }
+        .legend-text { font-size: 8pt; color: #666; }
+        
+        .footer { margin-top: 15px; text-align: center; font-size: 8pt; color: #999; border-top: 1px solid #e9ecef; padding-top: 8px; }
+        
+        @media print {
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <img src="/client/public/GEAMH LOGO.png" alt="GEAMH Logo" onerror="this.style.display='none'">
+        <h1>GEAMH HRIS</h1>
+        <p>${title}</p>
+      </div>
+      
+      <div class="info-bar">
+        <div class="info-item">
+          <span class="info-label">Department:</span>
+          <span class="info-value">${department}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Period:</span>
+          <span class="info-value">${dateRange || 'All Dates'}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Total Employees:</span>
+          <span class="info-value">${employees.length}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Total Schedules:</span>
+          <span class="info-value">${schedules.length}</span>
+        </div>
+      </div>
+      
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 15%;">Employee</th>
+            <th style="width: 12%;">Date</th>
+            <th style="width: 10%;">Shift</th>
+            <th style="width: 18%;">Time</th>
+            <th style="width: 10%;">Status</th>
+            <th style="width: 35%;">Remarks</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${employees.map(emp => emp.schedules.map(schedule => {
+    const shiftDisplay = getShiftDisplay(schedule.shiftCode, schedule.department)
+    const shiftColor = getShiftColor(schedule.shiftCode, schedule.department)
+    return `
+              <tr>
+                <td>
+                  <div class="emp-name">${emp.employeeName}</div>
+                  <div class="emp-no">${emp.employeeNo}</div>
+                </td>
+                <td>${new Date(schedule.scheduleDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                <td><span class="shift-badge" style="background: ${shiftColor};">${shiftDisplay.code}</span></td>
+                <td style="font-size: 8pt;">${shiftDisplay.timeRange}</td>
+                <td><span class="status-badge status-${(schedule.status || 'pending').toLowerCase()}">${schedule.status || 'Pending'}</span></td>
+                <td style="font-size: 8pt;">${schedule.remarks || '—'}</td>
+              </tr>
+            `
+  }).join('')).join('')}
+        </tbody>
+      </table>
+      
+      ${includeLegend ? `
+      <div class="legend">
+        <h4>Shift Legend</h4>
+        <div class="legend-items">
+          ${getLegendHTML(department)}
+        </div>
+      </div>
+      ` : ''}
+      
+      <div class="footer">
+        Generated on ${new Date().toLocaleString('en-US')} | GEAMH HRIS Schedule Management System
+      </div>
+    </body>
+    </html>
+  `
+
+  const printWindow = window.open('', '_blank')
+  printWindow.document.write(html)
+  printWindow.document.close()
+  printWindow.focus()
+  setTimeout(() => {
+    printWindow.print()
+  }, 250)
+}
+
+/**
+ * Print Transmittal Report
+ * @param {Array} departments - Array of department data
+ * @param {Object} options - Print options
+ */
+export function printTransmittalReport(departments, options = {}) {
+  const {
+    title = 'Schedule Transmittal Report',
+    periodStart = '',
+    periodEnd = ''
+  } = options
+
+  const totalStaff = departments.reduce((sum, dept) => sum + dept.staffCount, 0)
+  const totalSubmitted = departments.reduce((sum, dept) => sum + dept.submittedCount, 0)
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>${title}</title>
+      <style>
+        @page { size: A4 portrait; margin: 20mm; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; font-size: 11pt; color: #333; }
+        
+        .header { text-align: center; margin-bottom: 25px; border-bottom: 3px solid #1a3a5c; padding-bottom: 15px; }
+        .header img { height: 70px; margin-bottom: 10px; }
+        .header h1 { font-size: 22pt; color: #1a3a5c; margin-bottom: 5px; }
+        .header p { font-size: 11pt; color: #666; }
+        
+        .period-info { text-align: center; margin-bottom: 20px; padding: 12px; background: #f8f9fa; border-radius: 8px; }
+        .period-info strong { color: #1a3a5c; }
+        
+        table { width: 100%; border-collapse: collapse; margin-bottom: 25px; }
+        thead { background: #1a3a5c; color: #fff; }
+        th { padding: 12px 10px; text-align: left; font-weight: 600; border: 1px solid #fff; }
+        td { padding: 10px; border: 1px solid #e9ecef; }
+        tbody tr:nth-child(even) { background: #f8f9fa; }
+        
+        .summary { margin-bottom: 30px; padding: 15px; background: #e8f0fe; border-radius: 8px; border-left: 4px solid #1a3a5c; }
+        .summary h3 { color: #1a3a5c; margin-bottom: 10px; }
+        .summary-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+        .summary-label { font-weight: 600; color: #666; }
+        .summary-value { font-weight: bold; color: #1a3a5c; font-size: 13pt; }
+        
+        .signatures { margin-top: 40px; display: flex; justify-content: space-around; }
+        .signature-block { text-align: center; }
+        .signature-line { border-top: 2px solid #333; width: 200px; margin: 40px auto 5px; }
+        .signature-label { font-size: 10pt; color: #666; }
+        .signature-name { font-weight: bold; color: #1a3a5c; }
+        
+        .footer { margin-top: 30px; text-align: center; font-size: 9pt; color: #999; border-top: 1px solid #e9ecef; padding-top: 10px; }
+        
+        @media print {
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <img src="/client/public/GEAMH LOGO.png" alt="GEAMH Logo" onerror="this.style.display='none'">
+        <h1>GEAMH HRIS</h1>
+        <p>${title}</p>
+      </div>
+      
+      ${periodStart && periodEnd ? `
+      <div class="period-info">
+        <strong>Period:</strong> ${new Date(periodStart).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} - ${new Date(periodEnd).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+      </div>
+      ` : ''}
+      
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 10%;">Page No.</th>
+            <th style="width: 25%;">Department</th>
+            <th style="width: 15%;">Staff Count</th>
+            <th style="width: 15%;">Submitted</th>
+            <th style="width: 15%;">Date Submitted</th>
+            <th style="width: 20%;">Remarks</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${departments.map((dept, index) => `
+            <tr>
+              <td style="text-align: center;">${index + 1}</td>
+              <td><strong>${dept.department}</strong></td>
+              <td style="text-align: center;">${dept.staffCount}</td>
+              <td style="text-align: center;"><strong>${dept.submittedCount}</strong></td>
+              <td>${dept.dateSubmitted ? new Date(dept.dateSubmitted).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</td>
+              <td>${dept.remarks || '—'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      
+      <div class="summary">
+        <h3>Summary</h3>
+        <div class="summary-row">
+          <span class="summary-label">Total Departments:</span>
+          <span class="summary-value">${departments.length}</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Total Staff:</span>
+          <span class="summary-value">${totalStaff}</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Total Submitted:</span>
+          <span class="summary-value">${totalSubmitted}</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Completion Rate:</span>
+          <span class="summary-value">${totalStaff > 0 ? Math.round((totalSubmitted / totalStaff) * 100) : 0}%</span>
+        </div>
+      </div>
+      
+      <div class="signatures">
+        <div class="signature-block">
+          <div class="signature-line"></div>
+          <div class="signature-label">Prepared By</div>
+          <div class="signature-name">HR Department</div>
+        </div>
+        <div class="signature-block">
+          <div class="signature-line"></div>
+          <div class="signature-label">Noted By</div>
+          <div class="signature-name">Department Head</div>
+        </div>
+      </div>
+      
+      <div class="footer">
+        Generated on ${new Date().toLocaleString('en-US')} | GEAMH HRIS Schedule Management System
+      </div>
+    </body>
+    </html>
+  `
+
+  const printWindow = window.open('', '_blank')
+  printWindow.document.write(html)
+  printWindow.document.close()
+  printWindow.focus()
+  setTimeout(() => {
+    printWindow.print()
+  }, 250)
+}
