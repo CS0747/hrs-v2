@@ -310,6 +310,7 @@ const initials = computed(() => {
           <div class="profile-info">
             <span class="profile-name">{{ auth.currentUser?.name || "HR Admin" }}</span>
             <span class="profile-role">{{ auth.currentUser?.role || "" }}</span>
+            <span v-if="auth.currentUser?.role === 'Section Admin' || auth.currentUser?.role === 'Admin'" class="profile-dept">{{ auth.currentUser?.department || "" }}</span>
           </div>
           <span class="chevron">{{ dropdownOpen ? "▲" : "▼" }}</span>
         </button>
@@ -324,6 +325,7 @@ const initials = computed(() => {
               <div>
                 <div class="dropdown-name">{{ auth.currentUser?.name }}</div>
                 <div class="dropdown-role">{{ auth.currentUser?.role }}</div>
+                <div v-if="auth.currentUser?.role === 'Section Admin' || auth.currentUser?.role === 'Admin'" class="dropdown-dept">{{ auth.currentUser?.department }}</div>
               </div>
             </div>
             <div class="dropdown-divider"></div>
@@ -518,6 +520,7 @@ const initials = computed(() => {
 .profile-info { display:flex; flex-direction:column; line-height:1.2; text-align:left; }
 .profile-name { font-size:13px; font-weight:700; color:#1a6b3c; }
 .profile-role { font-size:10px; color:#27ae60; }
+.profile-dept { font-size:9px; color:#888; font-style:italic; margin-top:1px; }
 .chevron { font-size:10px; color:#888; }
 .dropdown-menu {
   position:absolute; top:calc(100% + 8px); right:0;
@@ -538,6 +541,7 @@ const initials = computed(() => {
 .avatar-img-lg { width:100%; height:100%; object-fit:cover; border-radius:50%; }
 .dropdown-name { font-size:14px; font-weight:700; }
 .dropdown-role { font-size:11px; opacity:0.85; }
+.dropdown-dept { font-size:10px; opacity:0.75; font-style:italic; margin-top:2px; }
 .dropdown-divider { height:1px; background:#f0f4f8; margin:4px 0; }
 .dropdown-item {
   width:100%; display:flex; align-items:center; gap:10px;

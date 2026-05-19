@@ -26,7 +26,7 @@ switch ($action) {
         if (!$username || !$password) sendError('Username and password required');
 
         $stmt = $conn->prepare(
-            'SELECT id, username, name, role, department
+            'SELECT id, username, name, role, department, position
              FROM users WHERE username = ? AND password = SHA2(?, 256) AND active = 1'
         );
         $stmt->bind_param('ss', $username, $password);
@@ -64,6 +64,7 @@ switch ($action) {
         $name     = trim($data['name']     ?? '');
         $role     = trim($data['role']     ?? 'Admin');
         $dept     = trim($data['department'] ?? 'Human Resources');
+        $position = trim($data['position'] ?? '');
 
         if (!$username || !$password || !$name) sendError('Username, password, and name are required');
         if (strlen($password) < 6) sendError('Password must be at least 6 characters');
@@ -86,10 +87,10 @@ switch ($action) {
         
         try {
             $stmt = $conn->prepare(
-                'INSERT INTO users (username, password, name, role, department)
-                 VALUES (?, SHA2(?, 256), ?, ?, ?)'
+                'INSERT INTO users (username, password, name, role, department, position)
+                 VALUES (?, SHA2(?, 256), ?, ?, ?, ?)'
             );
-            $stmt->bind_param('sssss', $username, $password, $name, $role, $dept);
+            $stmt->bind_param('ssssss', $username, $password, $name, $role, $dept, $position);
             
             if (!$stmt->execute()) {
                 throw new Exception('Failed to create account: ' . $stmt->error);
@@ -118,7 +119,7 @@ switch ($action) {
         }
         
         $rows = $conn->query(
-            'SELECT id, username, name, role, department, active, created_at FROM users ORDER BY id'
+            'SELECT id, username, name, role, department, position, active, created_at FROM users ORDER BY id'
         )->fetch_all(MYSQLI_ASSOC);
         sendJson(['users' => $rows]);
         break;
@@ -133,10 +134,11 @@ switch ($action) {
         $name = trim($data['name']       ?? '');
         $role = trim($data['role']       ?? '');
         $dept = trim($data['department'] ?? '');
+        $position = trim($data['position'] ?? '');
         if (!$name) sendError('Name is required');
 
-        $stmt = $conn->prepare('UPDATE users SET name=?, role=?, department=? WHERE id=?');
-        $stmt->bind_param('sssi', $name, $role, $dept, $id);
+        $stmt = $conn->prepare('UPDATE users SET name=?, role=?, department=?, position=? WHERE id=?');
+        $stmt->bind_param('ssssi', $name, $role, $dept, $position, $id);
         $stmt->execute();
         sendJson(['message' => 'Profile updated']);
         break;

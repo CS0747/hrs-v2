@@ -71,13 +71,29 @@
                   'selected': isDateSelected(cell),
                   'today': isToday(cell),
                   'weekend': cell.getDay() === 0 || cell.getDay() === 6,
-                  'has-schedule': daySchedules[toDateKey(cell)]
+                  'has-schedule': daySchedules[toDateKey(cell)],
+                  'holiday': isHoliday(toDateKey(cell))
                 }"
                 @click="toggleFormDate(cell)"
+                :title="getHolidayName(toDateKey(cell)) || ''"
               >
                 <span class="day-num">{{ cell.getDate() }}</span>
-                <span v-if="daySchedules[toDateKey(cell)]" class="day-shift">
-                  {{ daySchedules[toDateKey(cell)].shiftCode }}
+                <span v-if="isHoliday(toDateKey(cell))" class="holiday-indicator">H</span>
+                <span v-else-if="daySchedules[toDateKey(cell)]" class="day-shift">
+                  <!-- OFF: show circle -->
+                  <div v-if="daySchedules[toDateKey(cell)].shiftCode === 'OFF'" class="mini-off-circle"></div>
+                  <!-- 610: multi-color -->
+                  <template v-else-if="daySchedules[toDateKey(cell)].shiftCode === '610'">
+                    <span style="color: #2196F3; font-weight: bold;">6</span><span style="color: #4CAF50; font-weight: bold;">10</span>
+                  </template>
+                  <!-- 26: multi-color -->
+                  <template v-else-if="daySchedules[toDateKey(cell)].shiftCode === '26'">
+                    <span style="color: #4CAF50; font-weight: bold;">2</span><span style="color: #F44336; font-weight: bold;">6</span>
+                  </template>
+                  <!-- Regular codes -->
+                  <template v-else>
+                    {{ daySchedules[toDateKey(cell)].shiftCode }}
+                  </template>
                 </span>
               </div>
               <div v-else class="cal-day empty"></div>
@@ -139,11 +155,34 @@
                     :key="shift.code"
                     type="button"
                     class="shift-btn"
-                    :class="{ active: daySchedules[date].shiftCode === shift.code }"
+                    :class="{ active: daySchedules[date].shiftCode === shift.code, 'off-shift': shift.code === 'OFF' }"
                     :style="getShiftStyle(shift)"
                     @click="selectShiftForDate(date, shift)"
                   >
-                    {{ shift.code }}
+                    <!-- OFF duty: show circle -->
+                    <div v-if="shift.code === 'OFF'" class="shift-off-circle"></div>
+                    
+                    <!-- 610: 6=Blue, 10=Green -->
+                    <template v-else-if="shift.code === '610'">
+                      <span class="shift-code">
+                        <span style="color: #2196F3;">6</span><span style="color: #4CAF50;">10</span>
+                      </span>
+                      <span class="shift-name">{{ shift.name }}</span>
+                    </template>
+                    
+                    <!-- 26: 2=Green, 6=Red -->
+                    <template v-else-if="shift.code === '26'">
+                      <span class="shift-code">
+                        <span style="color: #4CAF50;">2</span><span style="color: #F44336;">6</span>
+                      </span>
+                      <span class="shift-name">{{ shift.name }}</span>
+                    </template>
+                    
+                    <!-- Regular shifts -->
+                    <template v-else>
+                      <span class="shift-code">{{ shift.code }}</span>
+                      <span class="shift-name">{{ shift.name }}</span>
+                    </template>
                   </button>
                 </div>
               </div>
@@ -173,6 +212,8 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useEmployeeStore } from '@/stores/employees'
 import { useLegendStore } from '@/stores/legend'
+import { useHolidays } from '@/composables/useHolidays'
+import { useAuthStore } from '@/stores/auth'
 
 const props = defineProps({
   modelValue: {
@@ -189,6 +230,8 @@ const emit = defineEmits(['update:modelValue'])
 
 const empStore = useEmployeeStore()
 const legendStore = useLegendStore()
+const auth = useAuthStore()
+const { holidays, fetchHolidays, isHoliday, getHolidayName } = useHolidays()
 
 // Local form state
 const localForm = ref({
@@ -208,9 +251,22 @@ const empSearch = ref('')
 const empDropOpen = ref(false)
 
 const filteredEmps = computed(() => {
+  const userDepartment = auth.currentUser?.department
+  const userRole = auth.currentUser?.role
+  
+  // Filter employees by department for Admin and Section Admin (case-insensitive)
+  let employees = empStore.employees
+  if ((userRole === 'Admin' || userRole === 'Section Admin') && userDepartment) {
+    employees = employees.filter(e => 
+      e.department && e.department.toLowerCase() === userDepartment.toLowerCase()
+    )
+  }
+  
+  // Apply search filter
   const q = empSearch.value.toLowerCase().trim()
-  if (!q) return empStore.employees.slice(0, 50)
-  return empStore.employees.filter(e =>
+  if (!q) return employees.slice(0, 50)
+  
+  return employees.filter(e =>
     e.lastName.toLowerCase().includes(q) ||
     e.firstName.toLowerCase().includes(q) ||
     e.employeeNo.toLowerCase().includes(q)
@@ -239,9 +295,47 @@ function onEmpBlur() {
   setTimeout(() => { empDropOpen.value = false }, 180)
 }
 
-// Available shifts based on department
+// Available shifts based on department with friendly names
 const availableShifts = computed(() => {
-  return legendStore.getLegendsForDepartment(localForm.value.department)
+  const legends = legendStore.getLegendsForDepartment(localForm.value.department)
+  
+  // Map legends to include friendly shift names
+  return legends.map(legend => {
+    let name = legend.timeRange // Default to time range
+    
+    // Map shift codes to friendly names
+    switch(legend.code) {
+      case '62':
+        name = 'Morning'
+        break
+      case '210':
+        name = 'Afternoon'
+        break
+      case '106':
+        name = 'Night'
+        break
+      case '610':
+        name = 'Morning-Afternoon'
+        break
+      case '26':
+        name = 'Afternoon-Night'
+        break
+      case '85':
+        name = 'Standard'
+        break
+      case 'OFF':
+        name = 'Off Duty'
+        break
+      default:
+        // For custom shifts, use time range
+        name = legend.timeRange
+    }
+    
+    return {
+      ...legend,
+      name
+    }
+  })
 })
 
 // Form calendar
@@ -269,15 +363,25 @@ function formCalPrev() {
   const d = new Date(formCalMonth.value)
   d.setDate(1); d.setMonth(d.getMonth() - 1)
   formCalMonth.value = d
+  // Fetch holidays for the new month
+  fetchHolidays(d.getFullYear(), d.getMonth() + 1)
 }
 
 function formCalNext() {
   const d = new Date(formCalMonth.value)
   d.setDate(1); d.setMonth(d.getMonth() + 1)
   formCalMonth.value = d
+  // Fetch holidays for the new month
+  fetchHolidays(d.getFullYear(), d.getMonth() + 1)
 }
 
-function toDateKey(date) { return date.toISOString().split('T')[0] }
+function toDateKey(date) { 
+  // Use local date components to avoid timezone issues
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 
 function isDateSelected(date) {
   return localForm.value.selectedDates.includes(toDateKey(date))
@@ -298,11 +402,13 @@ function toggleFormDate(date) {
   if (idx === -1) {
     // Add date
     localForm.value.selectedDates.push(key)
-    // Initialize schedule for this date
+    // Initialize schedule for this date with default shift
+    const defaultShift = availableShifts.value.find(s => s.code === '85') || availableShifts.value[0]
     daySchedules.value[key] = {
       startTime: '08:00',
       endTime: '17:00',
-      shiftCode: '85'
+      shiftCode: defaultShift?.code || '85',
+      shiftName: defaultShift?.name || 'Standard'
     }
     // Set as active
     activeDate.value = key
@@ -340,6 +446,8 @@ function selectAllMonth() {
   const year = formCalMonth.value.getFullYear()
   const month = formCalMonth.value.getMonth()
   const last = new Date(year, month + 1, 0).getDate()
+  const defaultShift = availableShifts.value.find(s => s.code === '85') || availableShifts.value[0]
+  
   for (let d = 1; d <= last; d++) {
     const key = toDateKey(new Date(year, month, d))
     if (!localForm.value.selectedDates.includes(key)) {
@@ -347,7 +455,8 @@ function selectAllMonth() {
       daySchedules.value[key] = {
         startTime: '08:00',
         endTime: '17:00',
-        shiftCode: '85'
+        shiftCode: defaultShift?.code || '85',
+        shiftName: defaultShift?.name || 'Standard'
       }
     }
   }
@@ -371,6 +480,7 @@ function formatDateLabel(dateKey) {
 function selectShiftForDate(dateKey, shift) {
   if (daySchedules.value[dateKey]) {
     daySchedules.value[dateKey].shiftCode = shift.code
+    daySchedules.value[dateKey].shiftName = shift.name
   }
 }
 
@@ -382,7 +492,6 @@ function onTimeChange(dateKey) {
   
   // Try to match with available shifts
   const matchedShift = availableShifts.value.find(shift => {
-    const timeRange = shift.timeRange.toLowerCase()
     const start = schedule.startTime
     const end = schedule.endTime
     
@@ -399,6 +508,7 @@ function onTimeChange(dateKey) {
   
   if (matchedShift) {
     schedule.shiftCode = matchedShift.code
+    schedule.shiftName = matchedShift.name
   }
 }
 
@@ -426,7 +536,8 @@ function applyToAll() {
     daySchedules.value[dateKey] = {
       startTime: template.startTime,
       endTime: template.endTime,
-      shiftCode: template.shiftCode
+      shiftCode: template.shiftCode,
+      shiftName: template.shiftName
     }
   })
 }
@@ -440,7 +551,7 @@ watch([localForm, daySchedules], () => {
 }, { deep: true })
 
 // Initialize from props
-onMounted(() => {
+onMounted(async () => {
   if (props.modelValue) {
     Object.assign(localForm.value, props.modelValue)
     if (props.modelValue.daySchedules) {
@@ -448,8 +559,16 @@ onMounted(() => {
     }
   }
   
-  // Load legends
-  legendStore.fetchLegends()
+  // Refresh data to ensure latest information
+  await Promise.all([
+    legendStore.fetchLegends(),
+    empStore.fetchEmployees(),
+    empStore.fetchDepartments()
+  ])
+  
+  // Load holidays for current month
+  const now = new Date()
+  fetchHolidays(now.getFullYear(), now.getMonth() + 1)
 })
 </script>
 
@@ -728,6 +847,27 @@ onMounted(() => {
   color: #999;
 }
 
+.cal-day.holiday {
+  background: #FFE5E5;
+  border-color: #F44336;
+}
+
+.cal-day.holiday .day-num {
+  color: #F44336;
+  font-weight: 700;
+}
+
+.holiday-indicator {
+  position: absolute;
+  bottom: 2px;
+  font-size: 8px;
+  font-weight: 700;
+  color: #F44336;
+  background: rgba(255,255,255,0.8);
+  padding: 1px 3px;
+  border-radius: 2px;
+}
+
 .cal-day.selected {
   background: #1a3a5c !important;
   color: #fff !important;
@@ -743,6 +883,17 @@ onMounted(() => {
   background: rgba(255,255,255,0.3);
   padding: 1px 3px;
   border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mini-off-circle {
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid #F44336;
+  border-radius: 50%;
+  display: inline-block;
 }
 
 .day-num {
@@ -864,22 +1015,52 @@ onMounted(() => {
 }
 
 .shift-btn {
-  padding: 6px 12px;
-  border-radius: 4px;
+  padding: 8px 12px;
+  border-radius: 6px;
   border: 2px solid transparent;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.15s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 80px;
+}
+
+.shift-btn.off-shift {
+  background: transparent !important;
+  border-color: #F44336;
+}
+
+.shift-off-circle {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #F44336;
+  border-radius: 50%;
+}
+
+.shift-btn .shift-code {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.shift-btn .shift-name {
+  font-size: 9px;
+  font-weight: 500;
+  opacity: 0.9;
 }
 
 .shift-btn:hover {
   opacity: 0.8;
+  transform: translateY(-1px);
 }
 
 .shift-btn.active {
   border-color: #fff;
-  box-shadow: 0 0 0 2px #1a3a5c;
+  box-shadow: 0 0 0 3px #1a3a5c;
+  transform: scale(1.05);
 }
 
 .bulk-actions {

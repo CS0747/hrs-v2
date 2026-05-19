@@ -2,9 +2,12 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useEmployeeStore } from '@/stores/employees'
 import { usePermissions } from '@/composables/usePermissions'
+import { API_ENDPOINTS } from '@/config/api'
 
 const auth   = useAuthStore()
+const empStore = useEmployeeStore()
 const router = useRouter()
 const { hasPermission, loadPermissions } = usePermissions()
 
@@ -13,6 +16,11 @@ onMounted(async () => {
   // Allow Super Admin, Admin, and DIOS to access Account Management
   const allowed = ['Super Admin', 'Admin', 'DIOS']
   if (!allowed.includes(auth.userRole)) router.replace('/')
+  
+  // Fetch departments from API
+  await fetchDepartments()
+  // Fetch users to ensure list is up-to-date
+  await auth.fetchUsers()
 })
 
 // ── Icons ────────────────────────────────────────────────────────────────────
@@ -27,7 +35,30 @@ const icons = {
 }
 
 const roles = ['Admin', 'Super Admin', 'IT', 'Section Admin', 'DIOS']
+const departments = ref([])
 const search = ref('')
+
+// Fetch departments from API
+async function fetchDepartments() {
+  try {
+    const response = await fetch(API_ENDPOINTS.DEPARTMENTS, {
+      headers: {
+        'X-User-ID': auth.currentUser?.id || '0'
+      }
+    })
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    departments.value = data.map(d => d.name)
+  } catch (error) {
+    console.error('Error fetching departments:', error)
+    // Fallback to default departments if API fails
+    departments.value = ['Human Resources', 'Nursing', 'Medical', 'IT', 'Finance', 'Administrative']
+  }
+}
 
 const filtered = computed(() => {
   const q = search.value.toLowerCase()
@@ -44,39 +75,97 @@ const formError  = ref('')
 const showBio    = ref(false)
 const showBio2   = ref(false)
 
-const form = ref({ name: '', username: '', role: 'Admin', department: 'Human Resources', password: '', confirmPassword: '' })
+const form = ref({ name: '', username: '', role: 'Admin', department: '', position: '', password: '', confirmPassword: '' })
+
+// ── Employee selection for auto-fill ─────────────────────────────────────────
+const empSearch = ref('')
+const empDropOpen = ref(false)
+const selectedEmployee = ref(null)
+
+const filteredEmployees = computed(() => {
+  const q = empSearch.value.toLowerCase().trim()
+  if (!q) return empStore.employees.slice(0, 50)
+  
+  return empStore.employees.filter(e =>
+    e.lastName.toLowerCase().includes(q) ||
+    e.firstName.toLowerCase().includes(q) ||
+    e.employeeNo.toLowerCase().includes(q) ||
+    (e.position && e.position.toLowerCase().includes(q))
+  ).slice(0, 50)
+})
+
+function selectEmployee(emp) {
+  selectedEmployee.value = emp
+  form.value.name = `${emp.lastName}, ${emp.firstName}`
+  form.value.department = emp.department || ''
+  form.value.position = emp.position || ''
+  empSearch.value = `${emp.employeeNo} — ${emp.lastName}, ${emp.firstName}`
+  empDropOpen.value = false
+}
+
+function onEmpSearchInput() {
+  empDropOpen.value = true
+  selectedEmployee.value = null
+}
+
+function onEmpBlur() {
+  setTimeout(() => { empDropOpen.value = false }, 200)
+}
+
+function clearEmployeeSelection() {
+  selectedEmployee.value = null
+  empSearch.value = ''
+  form.value.name = ''
+  form.value.department = ''
+  form.value.position = ''
+}
 
 function openAdd() {
-  editId.value = null
-  form.value   = { name: '', username: '', role: 'Admin', department: 'Human Resources', password: '', confirmPassword: '' }
-  formError.value = ''
-  showForm.value  = true
+  editId.value      = null
+  form.value        = { name: '', username: '', role: 'Admin', department: '', position: '', password: '', confirmPassword: '' }
+  empSearch.value   = ''
+  empDropOpen.value = false
+  selectedEmployee.value = null
+  formError.value   = ''
+  showForm.value    = true
 }
 
 function openEdit(u) {
   editId.value = u.id
-  form.value   = { name: u.name, username: u.username, role: u.role, department: u.department || 'Human Resources', password: '', confirmPassword: '' }
+  form.value   = { name: u.name, username: u.username, role: u.role, department: u.department || '', position: u.position || '', password: '', confirmPassword: '' }
   formError.value = ''
   showForm.value  = true
 }
 
-function save() {
+async function save() {
   formError.value = ''
   if (!form.value.name.trim() || !form.value.username.trim()) { formError.value = 'Name and username are required.'; return }
+  if (!form.value.department) { formError.value = 'Department is required.'; return }
   if (!editId.value && !form.value.password) { formError.value = 'Biometrics number is required.'; return }
   if (form.value.password && form.value.password.length < 6) { formError.value = 'Biometrics number must be at least 6 characters.'; return }
   if (form.value.password && form.value.password !== form.value.confirmPassword) { formError.value = 'Biometrics numbers do not match.'; return }
 
   saving.value = true
-  if (editId.value) {
-    const data = { name: form.value.name, username: form.value.username, role: form.value.role, department: form.value.department }
-    if (form.value.password) data.password = form.value.password
-    auth.updateUser(editId.value, data)
-  } else {
-    auth.signup({ name: form.value.name, username: form.value.username, password: form.value.password, confirmPassword: form.value.confirmPassword, role: form.value.role, department: form.value.department })
+  try {
+    if (editId.value) {
+      const data = { name: form.value.name, username: form.value.username, role: form.value.role, department: form.value.department, position: form.value.position }
+      if (form.value.password) data.password = form.value.password
+      await auth.updateUser(editId.value, data)
+    } else {
+      await auth.signup({ name: form.value.name, username: form.value.username, password: form.value.password, confirmPassword: form.value.confirmPassword, role: form.value.role, department: form.value.department, position: form.value.position })
+    }
+    // Refresh data to ensure UI is up-to-date
+    await Promise.all([
+      auth.fetchUsers(),
+      fetchDepartments()
+    ])
+    showForm.value = false
+  } catch (error) {
+    console.error('Save error:', error)
+    formError.value = error.message || 'Failed to save account'
+  } finally {
+    saving.value = false
   }
-  saving.value    = false
-  showForm.value  = false
 }
 
 // ── Delete modal ─────────────────────────────────────────────────────────────
@@ -89,8 +178,12 @@ function promptDelete(u) {
   showDeleteModal.value = true
 }
 
-function confirmDelete() {
-  if (deleteTarget.value) auth.deleteUser(deleteTarget.value.id)
+async function confirmDelete() {
+  if (deleteTarget.value) {
+    await auth.deleteUser(deleteTarget.value.id)
+    // Refresh users list to reflect deletion
+    await auth.fetchUsers()
+  }
   showDeleteModal.value = false
   deleteTarget.value    = null
 }
@@ -177,9 +270,46 @@ function initials(name) {
             {{ editId ? 'Edit Account' : 'Add Account' }}
           </h3>
 
+          <!-- Employee Selection (Add mode only) -->
+          <div v-if="!editId" class="form-group">
+            <label>Select Employee (Optional - Auto-fills Name, Department, Position)</label>
+            <div class="employee-search-wrap">
+              <input
+                v-model="empSearch"
+                @input="onEmpSearchInput"
+                @focus="empDropOpen = true"
+                @blur="onEmpBlur"
+                type="text"
+                placeholder="Search by name, employee no, or position..."
+                class="emp-search-input"
+              />
+              <button v-if="selectedEmployee" type="button" class="clear-emp-btn" @click="clearEmployeeSelection">×</button>
+              <div v-if="empDropOpen && filteredEmployees.length > 0" class="emp-dropdown">
+                <div
+                  v-for="emp in filteredEmployees"
+                  :key="emp.id"
+                  class="emp-option"
+                  @mousedown.prevent="selectEmployee(emp)"
+                >
+                  <div class="emp-option-main">
+                    <strong>{{ emp.lastName }}, {{ emp.firstName }}</strong>
+                    <span class="emp-no">{{ emp.employeeNo }}</span>
+                  </div>
+                  <div class="emp-option-sub">
+                    <span>{{ emp.position || 'No position' }}</span>
+                    <span class="emp-dept">{{ emp.department || 'No dept' }}</span>
+                  </div>
+                </div>
+              </div>
+              <div v-else-if="empDropOpen && empSearch && filteredEmployees.length === 0" class="emp-dropdown">
+                <div class="emp-option-empty">No employees found</div>
+              </div>
+            </div>
+          </div>
+
           <div class="form-group">
             <label>Full Name <span class="req">*</span></label>
-            <input v-model="form.name" placeholder="Last Name, First Name" maxlength="80" />
+            <input v-model="form.name" placeholder="Last Name, First Name" maxlength="80" :readonly="!!selectedEmployee" />
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -193,9 +323,18 @@ function initials(name) {
               </select>
             </div>
           </div>
-          <div class="form-group">
-            <label>Department</label>
-            <input v-model="form.department" placeholder="e.g. Human Resources" maxlength="100" />
+          <div class="form-row">
+            <div class="form-group">
+              <label>Department <span class="req">*</span></label>
+              <select v-model="form.department">
+                <option value="">Select Department</option>
+                <option v-for="dept in departments" :key="dept" :value="dept">{{ dept }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Position</label>
+              <input v-model="form.position" placeholder="e.g. Administrative Aide III" maxlength="150" />
+            </div>
           </div>
           <div class="form-group">
             <label>Biometrics Number {{ editId ? '(leave blank to keep current)' : '*' }}</label>
@@ -324,4 +463,21 @@ function initials(name) {
 .modal-enter-active .modal, .modal-leave-active .modal { transition:transform 0.2s ease, opacity 0.2s ease; }
 .modal-enter-from, .modal-leave-to { opacity:0; }
 .modal-enter-from .modal, .modal-leave-to .modal { transform:scale(0.95); opacity:0; }
+
+/* Employee Search Dropdown */
+.employee-search-wrap { position:relative; }
+.emp-search-input { width:100%; padding:8px 32px 8px 12px; border:1px solid #ddd; border-radius:6px; font-size:13px; outline:none; }
+.emp-search-input:focus { border-color:#1a6b3c; }
+.clear-emp-btn { position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; font-size:20px; color:#999; cursor:pointer; padding:0 4px; line-height:1; }
+.clear-emp-btn:hover { color:#e74c3c; }
+.emp-dropdown { position:absolute; top:100%; left:0; right:0; background:#fff; border:1px solid #ddd; border-radius:6px; margin-top:4px; max-height:280px; overflow-y:auto; box-shadow:0 4px 12px rgba(0,0,0,0.1); z-index:1000; }
+.emp-option { padding:10px 12px; cursor:pointer; border-bottom:1px solid #f0f4f8; }
+.emp-option:last-child { border-bottom:none; }
+.emp-option:hover { background:#f9fafb; }
+.emp-option-main { display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
+.emp-option-main strong { font-size:13px; color:#1a1a2e; }
+.emp-no { font-size:11px; color:#888; font-family:monospace; background:#f0f4f8; padding:2px 6px; border-radius:4px; }
+.emp-option-sub { display:flex; align-items:center; justify-content:space-between; font-size:11px; color:#666; }
+.emp-dept { color:#1a6b3c; font-weight:600; }
+.emp-option-empty { padding:20px; text-align:center; color:#aaa; font-size:13px; }
 </style>

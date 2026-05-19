@@ -1,9 +1,12 @@
 <?php
 require_once 'db.php';
+require_once 'cors.php';
 
-$method = $_SERVER['REQUEST_METHOD'];
-$conn   = getConnection();
-$userId = (int)($_SERVER['HTTP_X_USER_ID'] ?? 0);
+// Wrap everything in try-catch to ensure JSON response
+try {
+    $method = $_SERVER['REQUEST_METHOD'];
+    $conn   = getConnection();
+    $userId = (int)($_SERVER['HTTP_X_USER_ID'] ?? 0);
 
 // Map HTTP methods to actions
 $actionMap = [
@@ -44,7 +47,15 @@ switch ($method) {
     // POST /departments.php -> create
     case 'POST':
         $data = json_decode(file_get_contents('php://input'), true);
-        if (!$data || empty($data['name'])) sendError('Department name is required');
+        
+        // Log for debugging
+        error_log("POST /departments.php - Data received: " . print_r($data, true));
+        error_log("User ID: $userId");
+        
+        if (!$data || empty($data['name'])) {
+            error_log("Error: Department name is required");
+            sendError('Department name is required');
+        }
 
         $name        = trim($data['name']);
         $code        = trim($data['code']        ?? '');
@@ -58,9 +69,15 @@ switch ($method) {
 
         if (!$stmt->execute()) {
             // Duplicate name
-            if ($conn->errno === 1062) sendError('Department already exists', 409);
+            if ($conn->errno === 1062) {
+                error_log("Error: Department already exists");
+                sendError('Department already exists', 409);
+            }
+            error_log("Error: Insert failed - " . $stmt->error);
             sendError('Insert failed: ' . $stmt->error, 500);
         }
+        
+        error_log("Success: Department created with ID " . $conn->insert_id);
         sendJson(['id' => $conn->insert_id, 'message' => 'Department created'], 201);
         break;
 
@@ -89,15 +106,40 @@ switch ($method) {
         sendJson(['message' => 'Department updated']);
         break;
 
-    // DELETE /departments.php?id=1 -> soft delete (set active=0)
+    // DELETE /departments.php?id=1 -> permanently delete
     case 'DELETE':
         $id = (int) ($_GET['id'] ?? 0);
         if (!$id) sendError('ID required');
 
-        $stmt = $conn->prepare('UPDATE departments SET active = 0 WHERE id = ?');
+        // Check if department is being used by employees
+        $checkStmt = $conn->prepare('SELECT COUNT(*) as count FROM employees WHERE department = (SELECT name FROM departments WHERE id = ?)');
+        $checkStmt->bind_param('i', $id);
+        $checkStmt->execute();
+        $result = $checkStmt->get_result()->fetch_assoc();
+        
+        if ($result['count'] > 0) {
+            sendError('Cannot delete department: ' . $result['count'] . ' employee(s) are assigned to this department', 409);
+        }
+        
+        // Check if department is being used by users
+        $checkStmt = $conn->prepare('SELECT COUNT(*) as count FROM users WHERE department = (SELECT name FROM departments WHERE id = ?)');
+        $checkStmt->bind_param('i', $id);
+        $checkStmt->execute();
+        $result = $checkStmt->get_result()->fetch_assoc();
+        
+        if ($result['count'] > 0) {
+            sendError('Cannot delete department: ' . $result['count'] . ' user(s) belong to this department', 409);
+        }
+
+        // Permanently delete the department
+        $stmt = $conn->prepare('DELETE FROM departments WHERE id = ?');
         $stmt->bind_param('i', $id);
-        $stmt->execute();
-        sendJson(['message' => 'Department deactivated']);
+        
+        if (!$stmt->execute()) {
+            sendError('Delete failed: ' . $stmt->error, 500);
+        }
+        
+        sendJson(['message' => 'Department permanently deleted']);
         break;
 
     default:
@@ -105,3 +147,13 @@ switch ($method) {
 }
 
 $conn->close();
+
+} catch (Exception $e) {
+    // Ensure we always return JSON even on error
+    http_response_code(500);
+    header('Content-Type: application/json');
+    echo json_encode([
+        'error' => 'Server error: ' . $e->getMessage(),
+        'trace' => $e->getTraceAsString()
+    ]);
+}

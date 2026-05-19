@@ -32,7 +32,16 @@ export const useEmployeeStore = defineStore('employees', () => {
 
   async function fetchDepartments() {
     try {
-      const res = await fetch(DEPT_API)
+      // Get user ID from session storage for authentication
+      const user = JSON.parse(sessionStorage.getItem('hris_user') || 'null')
+      const headers = {
+        'Content-Type': 'application/json'
+      }
+      if (user?.id) {
+        headers['X-User-ID'] = String(user.id)
+      }
+
+      const res = await fetch(DEPT_API, { headers })
       if (!res.ok) throw new Error('Failed to fetch departments')
       const rows = await res.json()
       if (Array.isArray(rows) && rows.length > 0) {
@@ -43,11 +52,20 @@ export const useEmployeeStore = defineStore('employees', () => {
     }
   }
 
-  // Load all employees from DB � replaces in-memory list
+  // Load all employees from DB – replaces in-memory list
   async function fetchEmployees() {
     try {
       loading.value = true
-      const res = await fetch(API)
+      // Get user ID from session storage for authentication
+      const user = JSON.parse(sessionStorage.getItem('hris_user') || 'null')
+      const headers = {
+        'Content-Type': 'application/json'
+      }
+      if (user?.id) {
+        headers['X-User-ID'] = String(user.id)
+      }
+
+      const res = await fetch(API, { headers })
       if (!res.ok) throw new Error('Failed to fetch')
       const rows = await res.json()
       if (Array.isArray(rows) && rows.length > 0) {
@@ -92,9 +110,18 @@ export const useEmployeeStore = defineStore('employees', () => {
   fetchDepartments()
 
   async function addEmployee(emp) {
+    // Get user ID from session storage for authentication
+    const user = JSON.parse(sessionStorage.getItem('hris_user') || 'null')
+    const headers = {
+      'Content-Type': 'application/json'
+    }
+    if (user?.id) {
+      headers['X-User-ID'] = String(user.id)
+    }
+
     const res = await fetch(API, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(emp),
     })
     const json = await res.json()
@@ -106,9 +133,18 @@ export const useEmployeeStore = defineStore('employees', () => {
 
   async function updateEmployee(id, data) {
     const oldRecord = employees.value.find(e => e.id === id)
+    // Get user ID from session storage for authentication
+    const user = JSON.parse(sessionStorage.getItem('hris_user') || 'null')
+    const headers = {
+      'Content-Type': 'application/json'
+    }
+    if (user?.id) {
+      headers['X-User-ID'] = String(user.id)
+    }
+
     const res = await fetch(`${API}?id=${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(data),
     })
     const json = await res.json()
@@ -121,7 +157,17 @@ export const useEmployeeStore = defineStore('employees', () => {
   async function deleteEmployee(id) {
     const record = employees.value.find(e => e.id === id)
     try {
-      const res = await fetch(`${API}?id=${id}`, { method: 'DELETE' })
+      // Get user ID from session storage for authentication
+      const user = JSON.parse(sessionStorage.getItem('hris_user') || 'null')
+      const headers = {}
+      if (user?.id) {
+        headers['X-User-ID'] = String(user.id)
+      }
+
+      const res = await fetch(`${API}?id=${id}`, {
+        method: 'DELETE',
+        headers
+      })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Delete failed')
       if (record) trackDelete('Employee', record, `${record.lastName}, ${record.firstName}`)

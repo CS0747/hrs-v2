@@ -92,6 +92,7 @@ export const useAuthStore = defineStore('auth', () => {
           name: data.name,
           role: data.role || 'Admin',
           department: data.department || 'Human Resources',
+          position: data.position || '',
         }),
       })
       const json = await res.json()
@@ -145,8 +146,17 @@ export const useAuthStore = defineStore('auth', () => {
         body: JSON.stringify(data),
       })
       if (!res.ok) return false
+
+      // Update users list
       const idx = users.value.findIndex(u => u.id === id)
       if (idx !== -1) users.value[idx] = { ...users.value[idx], ...data }
+
+      // If updating current user, update session storage
+      if (currentUser.value && currentUser.value.id === id) {
+        currentUser.value = { ...currentUser.value, ...data }
+        sessionStorage.setItem('hris_user', JSON.stringify(currentUser.value))
+      }
+
       addLog('User Updated', 'Auth', `User ${data.name ?? id} updated.`)
       return true
     } catch { return false }
@@ -159,6 +169,26 @@ export const useAuthStore = defineStore('auth', () => {
     }
     currentUser.value = null
     sessionStorage.removeItem('hris_user')
+  }
+
+  // ── Refresh current user data from database ───────────────────────────────
+  async function refreshCurrentUser() {
+    if (!currentUser.value?.id) return false
+    try {
+      const res = await fetch(`${AUTH_API}?action=users`)
+      const data = await res.json()
+      if (Array.isArray(data.users)) {
+        const updatedUser = data.users.find(u => u.id === currentUser.value.id)
+        if (updatedUser) {
+          currentUser.value = { ...updatedUser, password: undefined }
+          sessionStorage.setItem('hris_user', JSON.stringify(currentUser.value))
+          return true
+        }
+      }
+    } catch (e) {
+      console.error('Failed to refresh user:', e)
+    }
+    return false
   }
 
   // ── Profile change requests (localStorage — lightweight approval flow) ────
@@ -283,7 +313,7 @@ export const useAuthStore = defineStore('auth', () => {
     currentUser, isLoggedIn, loginError, signupError, loginLoading,
     activityLog, users, userRole,
     isSectionAdmin, isIT, isFullAccess, canEdit, isSuperAdmin, isAdminOrAbove,
-    login, signup, logout, updateProfile, updateUser, deleteUser,
+    login, signup, logout, refreshCurrentUser, updateProfile, updateUser, deleteUser,
     addLog, nowTimestamp, fetchUsers, apiFetch,
     profileRequests, pendingProfileRequests, myPendingRequest,
     requestProfileChange, approveProfileRequest, rejectProfileRequest,

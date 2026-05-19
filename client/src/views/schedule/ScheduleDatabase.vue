@@ -19,6 +19,11 @@ const notificationStore = useNotificationStore()
 
 onMounted(async () => {
   await loadPermissions()
+  // Refresh employees and departments to ensure dropdowns are up-to-date
+  await Promise.all([
+    empStore.fetchEmployees(),
+    empStore.fetchDepartments()
+  ])
 })
 
 // ── Icons ────────────────────────────────────────────────────────────────────
@@ -81,9 +86,22 @@ const empSearch   = ref('')
 const empDropOpen = ref(false)
 
 const filteredEmps = computed(() => {
+  const userDepartment = auth.currentUser?.department
+  const userRole = auth.currentUser?.role
+  
+  // Filter employees by department for Admin and Section Admin (case-insensitive)
+  let employees = empStore.employees
+  if ((userRole === 'Admin' || userRole === 'Section Admin') && userDepartment) {
+    employees = employees.filter(e => 
+      e.department && e.department.toLowerCase() === userDepartment.toLowerCase()
+    )
+  }
+  
+  // Apply search filter
   const q = empSearch.value.toLowerCase().trim()
-  if (!q) return empStore.employees.slice(0, 50)
-  return empStore.employees.filter(e =>
+  if (!q) return employees.slice(0, 50)
+  
+  return employees.filter(e =>
     e.lastName.toLowerCase().includes(q) ||
     e.firstName.toLowerCase().includes(q) ||
     e.employeeNo.toLowerCase().includes(q)
@@ -170,26 +188,59 @@ async function doSave() {
     } else {
       // Check if using new format with day schedules
       if (form.value.daySchedules && Object.keys(form.value.daySchedules).length > 0) {
-        // Create individual schedules for each date with its own time and shift
-        const promises = []
-        for (const [dateKey, dayConfig] of Object.entries(form.value.daySchedules)) {
-          promises.push(store.addSchedule({
+        // Check if all dates have the same shift/time configuration
+        const dates = Object.keys(form.value.daySchedules)
+        const firstConfig = form.value.daySchedules[dates[0]]
+        const allSame = dates.every(date => {
+          const config = form.value.daySchedules[date]
+          return config.startTime === firstConfig.startTime &&
+                 config.endTime === firstConfig.endTime &&
+                 config.shiftCode === firstConfig.shiftCode
+        })
+        
+        if (allSame && dates.length > 1) {
+          // Use bulk insert API for efficiency
+          await store.addSchedule({
             employeeNo: form.value.employeeNo,
             employeeName: form.value.employeeName,
             department: form.value.department,
-            scheduleDate: dateKey,
-            startTime: dayConfig.startTime,
-            endTime: dayConfig.endTime,
-            shiftCode: dayConfig.shiftCode,
-            shiftName: dayConfig.shiftCode === 'OFF' ? 'Off Duty' : 
-                       dayConfig.shiftCode === '85' ? 'Standard' :
-                       dayConfig.shiftCode === '62' ? 'Morning' :
-                       dayConfig.shiftCode === '210' ? 'Evening' :
-                       dayConfig.shiftCode === '106' ? 'Night' : 'Custom',
-            remarks: form.value.remarks || ''
-          }))
+            scheduleDate: dates[0], // Required field
+            startTime: firstConfig.startTime,
+            endTime: firstConfig.endTime,
+            shiftCode: firstConfig.shiftCode,
+            shiftName: firstConfig.shiftCode === 'OFF' ? 'Off Duty' : 
+                       firstConfig.shiftCode === '85' ? 'Standard' :
+                       firstConfig.shiftCode === '62' ? 'Morning' :
+                       firstConfig.shiftCode === '210' ? 'Afternoon' :
+                       firstConfig.shiftCode === '106' ? 'Night' :
+                       firstConfig.shiftCode === '610' ? 'Morning-Afternoon' :
+                       firstConfig.shiftCode === '26' ? 'Afternoon-Night' : 'Custom',
+            remarks: form.value.remarks || '',
+            specificDates: dates // This triggers bulk insert in the API
+          })
+        } else {
+          // Different shifts/times per date - insert individually
+          // Use sequential inserts to avoid race conditions
+          for (const [dateKey, dayConfig] of Object.entries(form.value.daySchedules)) {
+            await store.addSchedule({
+              employeeNo: form.value.employeeNo,
+              employeeName: form.value.employeeName,
+              department: form.value.department,
+              scheduleDate: dateKey,
+              startTime: dayConfig.startTime,
+              endTime: dayConfig.endTime,
+              shiftCode: dayConfig.shiftCode,
+              shiftName: dayConfig.shiftCode === 'OFF' ? 'Off Duty' : 
+                         dayConfig.shiftCode === '85' ? 'Standard' :
+                         dayConfig.shiftCode === '62' ? 'Morning' :
+                         dayConfig.shiftCode === '210' ? 'Afternoon' :
+                         dayConfig.shiftCode === '106' ? 'Night' :
+                         dayConfig.shiftCode === '610' ? 'Morning-Afternoon' :
+                         dayConfig.shiftCode === '26' ? 'Afternoon-Night' : 'Custom',
+              remarks: form.value.remarks || ''
+            })
+          }
         }
-        await Promise.all(promises)
       } else {
         // Legacy format or single schedule
         await store.addSchedule({ ...form.value })

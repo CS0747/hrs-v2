@@ -75,7 +75,14 @@ export const useScheduleStore = defineStore('schedule', () => {
   async function fetchSchedules() {
     loading.value = true
     try {
-      const res = await fetch(API)
+      // Get user ID from session storage for authentication
+      const user = JSON.parse(sessionStorage.getItem('hris_user') || 'null')
+      const headers = {}
+      if (user?.id) {
+        headers['X-User-ID'] = String(user.id)
+      }
+
+      const res = await fetch(API, { headers })
       if (!res.ok) throw new Error('Failed to fetch schedules')
       const rows = await res.json()
       schedules.value = Array.isArray(rows) ? rows.map(mapRow) : []
@@ -89,9 +96,18 @@ export const useScheduleStore = defineStore('schedule', () => {
 
   // ── Add ────────────────────────────────────────────────────────────────────
   async function addSchedule(s) {
+    // Get user ID from session storage for authentication
+    const user = JSON.parse(sessionStorage.getItem('hris_user') || 'null')
+    const headers = {
+      'Content-Type': 'application/json'
+    }
+    if (user?.id) {
+      headers['X-User-ID'] = String(user.id)
+    }
+
     const res = await fetch(API, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(s),
     })
     const json = await res.json()
@@ -168,7 +184,14 @@ export const useScheduleStore = defineStore('schedule', () => {
   async function getSchedulesByDepartment(department) {
     loading.value = true
     try {
-      const res = await fetch(`${API}?dept=${encodeURIComponent(department)}`)
+      // Get user ID from session storage for authentication
+      const user = JSON.parse(sessionStorage.getItem('hris_user') || 'null')
+      const headers = {}
+      if (user?.id) {
+        headers['X-User-ID'] = String(user.id)
+      }
+
+      const res = await fetch(`${API}?dept=${encodeURIComponent(department)}`, { headers })
       if (!res.ok) throw new Error('Failed to fetch schedules')
       const rows = await res.json()
       return Array.isArray(rows) ? rows.map(mapRow) : []
@@ -184,7 +207,14 @@ export const useScheduleStore = defineStore('schedule', () => {
   async function getSchedulesByEmployee(employeeNo) {
     loading.value = true
     try {
-      const res = await fetch(`${API}?emp=${encodeURIComponent(employeeNo)}`)
+      // Get user ID from session storage for authentication
+      const user = JSON.parse(sessionStorage.getItem('hris_user') || 'null')
+      const headers = {}
+      if (user?.id) {
+        headers['X-User-ID'] = String(user.id)
+      }
+
+      const res = await fetch(`${API}?emp=${encodeURIComponent(employeeNo)}`, { headers })
       if (!res.ok) throw new Error('Failed to fetch schedules')
       const rows = await res.json()
       return Array.isArray(rows) ? rows.map(mapRow) : []
@@ -240,9 +270,18 @@ export const useScheduleStore = defineStore('schedule', () => {
   // ── Update ─────────────────────────────────────────────────────────────────
   async function updateSchedule(id, data) {
     const old = schedules.value.find(r => r.id === id)
+    // Get user ID from session storage for authentication
+    const user = JSON.parse(sessionStorage.getItem('hris_user') || 'null')
+    const headers = {
+      'Content-Type': 'application/json'
+    }
+    if (user?.id) {
+      headers['X-User-ID'] = String(user.id)
+    }
+
     const res = await fetch(`${API}?id=${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(data),
     })
     const json = await res.json()
@@ -255,7 +294,17 @@ export const useScheduleStore = defineStore('schedule', () => {
   // ── Delete ─────────────────────────────────────────────────────────────────
   async function deleteSchedule(id) {
     const rec = schedules.value.find(r => r.id === id)
-    const res = await fetch(`${API}?id=${id}`, { method: 'DELETE' })
+    // Get user ID from session storage for authentication
+    const user = JSON.parse(sessionStorage.getItem('hris_user') || 'null')
+    const headers = {}
+    if (user?.id) {
+      headers['X-User-ID'] = String(user.id)
+    }
+
+    const res = await fetch(`${API}?id=${id}`, {
+      method: 'DELETE',
+      headers
+    })
     const json = await res.json()
     if (!res.ok) throw new Error(json.error || 'Delete failed')
     if (rec) trackDelete('Schedule', rec, rec.employeeName ?? '')
