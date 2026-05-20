@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useVersionHistory } from '@/composables/useVersionHistory'
 
-const API = 'http://localhost/hrs-v2/server/api/dtr.php'
+const API = `${import.meta.env.VITE_API_BASE_URL}/dtr.php`
 
 export const useDTRStore = defineStore('dtr', () => {
   const dtrRecords = ref([])

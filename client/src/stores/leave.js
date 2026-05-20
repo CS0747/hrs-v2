@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useVersionHistory } from '@/composables/useVersionHistory'
 
-const API_URL = 'http://localhost/hrs-v2/server/api/leave.php'
+const API_URL = `${import.meta.env.VITE_API_BASE_URL}/leave.php`
 
 export const useLeaveStore = defineStore('leave', () => {
   const leaveRecords = ref([])

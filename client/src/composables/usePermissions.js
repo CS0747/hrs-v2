@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 
-const PERM_API = 'http://localhost/hrs-v2/server/api/module_permissions.php'
+const PERM_API = `${import.meta.env.VITE_API_BASE_URL}/module_permissions.php`
 
 // Global permissions cache
 const permissionsCache = ref(null)

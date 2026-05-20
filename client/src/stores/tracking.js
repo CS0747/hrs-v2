@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useVersionHistory } from '@/composables/useVersionHistory'
 
-const API_URL = 'http://localhost/hrs-v2/server/api/tracking.php'
+const API_URL = `${import.meta.env.VITE_API_BASE_URL}/tracking.php`
 
 export const useTrackingStore = defineStore('tracking', () => {
     const trackingRecords = ref([])

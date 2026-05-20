@@ -22,8 +22,8 @@ export const useEmployeeStore = defineStore('employees', () => {
 
   const employmentStatuses = ['Permanent', 'Casual', 'Contractual', 'Job Order', 'Co-terminus', 'Part Time']
 
-  const API = 'http://localhost/hrs-v2/server/api/employees.php'
-  const DEPT_API = 'http://localhost/hrs-v2/server/api/departments.php'
+  const API = `${import.meta.env.VITE_API_BASE_URL}/employees.php`
+  const DEPT_API = `${import.meta.env.VITE_API_BASE_URL}/departments.php`
   const loading = ref(false)
   const error = ref(null)
 

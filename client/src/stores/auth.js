@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
-const AUTH_API = 'http://localhost/hrs-v2/server/api/auth.php'
-const AUDIT_API = 'http://localhost/hrs-v2/server/api/audit_logs.php'
+const AUTH_API = `${import.meta.env.VITE_API_BASE_URL}/auth.php`
+const AUDIT_API = `${import.meta.env.VITE_API_BASE_URL}/audit_logs.php`
 
 export const useAuthStore = defineStore('auth', () => {
 
