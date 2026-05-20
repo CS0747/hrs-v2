@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { API_ENDPOINTS } from '@/config/api'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -45,7 +46,7 @@ async function handleForgotPassword() {
   
   forgotLoading.value = true
   try {
-    const res = await fetch('http://localhost/hrs-v2/server/api/auth.php?action=request_password_reset', {
+    const res = await fetch(`${API_ENDPOINTS.AUTH}?action=request_password_reset`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: forgotUsername.value.trim() })

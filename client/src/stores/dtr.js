@@ -1,8 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useVersionHistory } from '@/composables/useVersionHistory'
+import { API_ENDPOINTS } from '@/config/api'
 
-const API = 'http://localhost/hrs-v2/server/api/dtr.php'
+
+const API = API_ENDPOINTS.DTR
 
 export const useDTRStore = defineStore('dtr', () => {
   const dtrRecords = ref([])

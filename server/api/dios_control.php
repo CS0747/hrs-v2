@@ -1,7 +1,7 @@
 <?php
 /**
  * DIOS System Control API
- * All actions require a valid DIOS session token passed as X-DIOS-Token header.
+ * All actions require an authenticated DIOS user.
  */
 ini_set('display_errors', 0);
 error_reporting(0);
@@ -9,15 +9,16 @@ error_reporting(0);
 require_once 'db.php';
 
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, X-DIOS-Token');
+header('Access-Control-Allow-Headers: Content-Type, X-User-Id, X-User-ID');
 
 $method = $_SERVER['REQUEST_METHOD'];
 if ($method === 'OPTIONS') { http_response_code(200); exit; }
 
 $conn   = getConnection();
 $action = $_GET['action'] ?? '';
+
+requireRole($conn, ['DIOS']);
 
 // ── Allowed tables whitelist (prevents arbitrary table access) ────────────────
 $ALLOWED_TABLES = [

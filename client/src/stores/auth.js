@@ -1,8 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { API_ENDPOINTS } from '@/config/api'
 
-const AUTH_API = 'http://localhost/hrs-v2/server/api/auth.php'
-const AUDIT_API = 'http://localhost/hrs-v2/server/api/audit_logs.php'
+
+const AUTH_API = API_ENDPOINTS.AUTH
+
+const AUDIT_API = API_ENDPOINTS.AUDIT_LOGS
 
 export const useAuthStore = defineStore('auth', () => {
 
@@ -31,7 +34,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function fetchUsers() {
     try {
-      const res = await fetch(`${AUTH_API}?action=users`)
+      const res = await apiFetch(`${AUTH_API}?action=users`)
       const data = await res.json()
       if (Array.isArray(data.users)) {
         // Don't expose passwords — they're not returned by the API anyway
@@ -83,7 +86,7 @@ export const useAuthStore = defineStore('auth', () => {
       return false
     }
     try {
-      const res = await fetch(`${AUTH_API}?action=signup`, {
+      const res = await apiFetch(`${AUTH_API}?action=signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -114,7 +117,7 @@ export const useAuthStore = defineStore('auth', () => {
     const id = currentUser.value?.id
     if (!id) return
     try {
-      await fetch(`${AUTH_API}?action=update_profile&id=${id}`, {
+      await apiFetch(`${AUTH_API}?action=update_profile&id=${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -129,7 +132,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function deleteUser(id) {
     if (id === currentUser.value?.id) return false
     try {
-      const res = await fetch(`${AUTH_API}?action=delete_user&id=${id}`, { method: 'DELETE' })
+      const res = await apiFetch(`${AUTH_API}?action=delete_user&id=${id}`, { method: 'DELETE' })
       if (!res.ok) return false
       users.value = users.value.filter(u => u.id !== id)
       addLog('User Deleted', 'Auth', `User ID ${id} deactivated.`)
@@ -140,7 +143,7 @@ export const useAuthStore = defineStore('auth', () => {
   // ── Update user ───────────────────────────────────────────────────────────
   async function updateUser(id, data) {
     try {
-      const res = await fetch(`${AUTH_API}?action=update_profile&id=${id}`, {
+      const res = await apiFetch(`${AUTH_API}?action=update_profile&id=${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -175,7 +178,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function refreshCurrentUser() {
     if (!currentUser.value?.id) return false
     try {
-      const res = await fetch(`${AUTH_API}?action=users`)
+      const res = await apiFetch(`${AUTH_API}?action=users`)
       const data = await res.json()
       if (Array.isArray(data.users)) {
         const updatedUser = data.users.find(u => u.id === currentUser.value.id)
@@ -287,7 +290,7 @@ export const useAuthStore = defineStore('auth', () => {
     if (activityLog.value.length > 200) activityLog.value = activityLog.value.slice(0, 200)
     sessionStorage.setItem('hris_log', JSON.stringify(activityLog.value))
 
-    fetch(AUDIT_API, {
+    apiFetch(AUDIT_API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

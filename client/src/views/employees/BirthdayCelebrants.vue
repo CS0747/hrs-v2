@@ -1,8 +1,10 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import AppSelect from '@/components/AppSelect.vue'
+import { API_ENDPOINTS } from '@/config/api'
 
-const API = 'http://localhost/hrs-v2/server/api/birthday_celebrants.php'
+
+const API = API_ENDPOINTS.BIRTHDAY_CELEBRANTS
 
 const filterMonth = ref(new Date().getMonth() + 1)
 const show65      = ref(false)

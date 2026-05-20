@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { printAuditLogs } from '@/utils/print'
+import { API_ENDPOINTS } from '@/config/api'
 
 const auth = useAuthStore()
 
@@ -19,7 +20,7 @@ const loading = ref(false)
 onMounted(async () => {
   loading.value = true
   try {
-    const res  = await fetch('http://localhost/hrs-v2/server/api/audit_logs.php?limit=500')
+    const res  = await fetch(`${API_ENDPOINTS.AUDIT_LOGS}?limit=500`)
     const data = await res.json()
     if (Array.isArray(data)) dbLogs.value = data
   } catch { /* use session log only */ }

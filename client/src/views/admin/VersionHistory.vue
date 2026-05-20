@@ -2,9 +2,11 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import AppModal from '@/components/AppModal.vue'
+import { API_ENDPOINTS } from '@/config/api'
 
 const auth = useAuthStore()
-const AUDIT_API = 'http://localhost/hrs-v2/server/api/audit_logs.php'
+
+const AUDIT_API = API_ENDPOINTS.AUDIT_LOGS
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const logs    = ref([])
