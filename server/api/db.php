@@ -51,52 +51,51 @@ function getUserRole($conn, $userId) {
 }
 
 function checkPermission($conn, $userId, $module, $action) {
-    // If no user ID provided, fail-open for backward compatibility
-    // This allows the system to work while frontend is being updated
+    // Deny access if no valid user ID is provided
     if (!$userId || $userId <= 0) {
-        return true;
+        return false;
     }
-    
-    // Get user role
+
+    // Retrieve user role
     $role = getUserRole($conn, $userId);
-    
-    // If no valid role found, fail-open (user might not be in session)
+
+    // Deny if role cannot be determined
     if (!$role) {
-        return true;
+        return false;
     }
-    
-    // DIOS role has unrestricted access
+
+    // DIOS role retains unrestricted access
     if ($role === 'DIOS') {
         return true;
     }
-    
-    // Check module_permissions table
+
+    // Prepare permission lookup
     $stmt = $conn->prepare(
         'SELECT granted FROM module_permissions WHERE module = ? AND role = ? AND action = ?'
     );
-    
+
     if (!$stmt) {
-        // Fail-open on database error for backward compatibility
-        return true;
+        // If the permissions table is unreachable, deny access
+        return false;
     }
-    
+
     $stmt->bind_param('sss', $module, $role, $action);
     if (!$stmt->execute()) {
         $stmt->close();
-        // Fail-open on query error
-        return true;
+        // Query execution failed; deny access
+        return false;
     }
-    
+
     $result = $stmt->get_result();
     $permission = $result->fetch_assoc();
     $stmt->close();
-    
-    // If no permission record exists, fail-open (allow access for backward compatibility)
+
+    // Deny if no permission record exists for this module/role/action
     if (!$permission) {
-        return true;
+        return false;
     }
-    
-    // Return true if granted = 1, false if granted = 0
+
+    // Return true only if permission is explicitly granted
     return (bool)$permission['granted'];
 }
 

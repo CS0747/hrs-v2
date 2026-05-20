@@ -29,7 +29,7 @@ export function createAuthFetch() {
 }
 
 // API client for making requests
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost/hrs-v2/server/api'
+const API_BASE = import.meta.env.VITE_API_BASE_URL
 
 function getUserId() {
     const userStr = sessionStorage.getItem('hris_user')

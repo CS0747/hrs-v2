@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useVersionHistory } from '@/composables/useVersionHistory'
 import { useLegendStore } from './legend'
 
-const API = 'http://localhost/hrs-v2/server/api/schedule.php'
+const API = `${import.meta.env.VITE_API_BASE_URL}/schedule.php`
 
 export const useScheduleStore = defineStore('schedule', () => {
   const schedules = ref([])

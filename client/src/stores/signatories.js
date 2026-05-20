@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useVersionHistory } from '@/composables/useVersionHistory'
 
-const API_URL = 'http://localhost/hrs-v2/server/api/signatories.php'
+const API_URL = `${import.meta.env.VITE_API_BASE_URL}/signatories.php`
 
 export const useSignatoryStore = defineStore('signatories', () => {
     const signatories = ref([])
