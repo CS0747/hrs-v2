@@ -780,8 +780,12 @@ function extractDocx(string $path): array {
 
 // ── OCR.space API integration ─────────────────────────────────────────────────
 function ocrSpaceScan(string $filePath, string $fileName): array {
-    $apiKey   = 'K83763523288957';
+    $apiKey   = getenv('OCR_SPACE_API_KEY') ?: '';
     $endpoint = 'https://api.ocr.space/parse/image';
+
+    if (!$apiKey) {
+        sendError('OCR service is not configured', 503);
+    }
 
     // Preprocess image for better OCR accuracy
     $processedPath = preprocessImageForOCR($filePath);

@@ -3,8 +3,8 @@
  * Centralized API base URL configuration for development and production
  */
 
-// Get the API base URL from environment variable or use relative path
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/hrsystem/server/api/'
+const defaultBaseUrl = import.meta.env.DEV ? 'http://localhost/hrs-v2/server/api/' : '/hrsystem/server/api/'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || defaultBaseUrl
 
 // Ensure the URL ends with a slash
 const normalizedBaseUrl = API_BASE_URL.endsWith('/') ? API_BASE_URL : `${API_BASE_URL}/`

@@ -1,12 +1,20 @@
-﻿<script setup>
+<script setup>
 import { ref, onMounted } from 'vue'
 import { usePermissions } from '@/composables/usePermissions'
 import { useNotificationStore } from '@/stores/notifications'
+import { useAuthStore } from '@/stores/auth'
+import { API_ENDPOINTS } from '@/config/api'
 
-const API     = 'http://localhost/hrs-v2/server/api/ai_scan.php'
+
+const API     = API_ENDPOINTS.AI_SCAN
 const SAVE_API = API + '?action=save'
 const { hasPermission, loadPermissions } = usePermissions()
 const notificationStore = useNotificationStore()
+const auth = useAuthStore()
+
+function currentUserId() {
+  return auth.currentUser?.id || '0'
+}
 
 // -- Tesseract for image OCR ---------------------------------------------------
 let Tesseract = null
@@ -52,7 +60,7 @@ async function loadSavedScans() {
   try {
     const res  = await fetch(API, {
       headers: {
-        'X-User-ID': localStorage.getItem('userId') || '0'
+        'X-User-ID': currentUserId()
       }
     })
     if (!res.ok) {
@@ -90,7 +98,7 @@ async function processFiles(files) {
       const fd = new FormData()
       fd.append('file', file)
       
-      const userId = localStorage.getItem('userId') || '0'
+      const userId = currentUserId()
       
       // Upload to server - OCR.space API processes images server-side
       const res  = await fetch(API, { 
@@ -612,7 +620,7 @@ function closePreview() {
 async function saveScan(scan) {
   saving.value = true
   try {
-    const userId = localStorage.getItem('userId') || '0'
+    const userId = currentUserId()
     
     const res  = await fetch(SAVE_API, {
       method:  'POST',
@@ -658,7 +666,7 @@ async function saveScan(scan) {
 async function deleteScan(scan) {
   if (!confirm(`Delete "${scan.file_name}"?`)) return
   try {
-    const userId = localStorage.getItem('userId') || '0'
+    const userId = currentUserId()
     
     if (scan.id) {
       const res = await fetch(`${API}?id=${scan.id}`, { 

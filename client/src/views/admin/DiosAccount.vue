@@ -21,7 +21,9 @@ const testing = ref(false)
 const testResult = ref(null)
 
 function saveSettings() {
-  localStorage.setItem('dios_config', JSON.stringify(form.value))
+  const { password, ...safeConfig } = form.value
+  localStorage.setItem('dios_config', JSON.stringify(safeConfig))
+  form.value.password = ''
   saved.value = true
   setTimeout(() => { saved.value = false }, 2000)
 }
@@ -38,7 +40,12 @@ async function testConnection() {
 
 // Load saved config
 const saved_config = localStorage.getItem('dios_config')
-if (saved_config) Object.assign(form.value, JSON.parse(saved_config))
+if (saved_config) {
+  const parsedConfig = JSON.parse(saved_config)
+  delete parsedConfig.password
+  Object.assign(form.value, parsedConfig)
+  localStorage.setItem('dios_config', JSON.stringify(parsedConfig))
+}
 
 // ── Add DIOS Account ──────────────────────────────────────────────────────────
 const showAddForm  = ref(false)

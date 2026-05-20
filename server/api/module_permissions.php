@@ -13,9 +13,8 @@ require_once 'db.php';
 ob_clean();
 
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Headers: Content-Type, X-User-Id, X-User-ID');
 
 $method = $_SERVER['REQUEST_METHOD'];
 if ($method === 'OPTIONS') { http_response_code(200); exit; }
@@ -38,6 +37,7 @@ $conn->query("CREATE TABLE IF NOT EXISTS `module_permissions` (
 switch ($method) {
 
     case 'GET':
+        requireUser($conn);
         $module = trim($_GET['module'] ?? '');
         if ($module) {
             $stmt = $conn->prepare(
@@ -64,6 +64,7 @@ switch ($method) {
         break;
 
     case 'POST':
+        requireRole($conn, ['DIOS', 'Super Admin']);
         $body = json_decode(file_get_contents('php://input'), true);
         if (json_last_error() !== JSON_ERROR_NONE) sendError('Invalid JSON');
 
@@ -94,6 +95,7 @@ switch ($method) {
         break;
 
     case 'DELETE':
+        requireRole($conn, ['DIOS', 'Super Admin']);
         $module = trim($_GET['module'] ?? '');
         if (!$module) sendError('Module name required');
         $stmt = $conn->prepare('DELETE FROM module_permissions WHERE module = ?');

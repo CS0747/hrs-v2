@@ -1,12 +1,14 @@
-﻿<script setup>
+<script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useEmployeeStore } from '@/stores/employees'
 import { usePermissions } from '@/composables/usePermissions'
 import { printTrainings, printTrainingAttendees } from '@/utils/print'
+import { API_ENDPOINTS } from '@/config/api'
 
 const empStore = useEmployeeStore()
 const { hasPermission, loadPermissions } = usePermissions()
-const API = 'http://localhost/hrs-v2/server/api/trainings.php'
+
+const API = API_ENDPOINTS.TRAININGS
 
 // ── State ────────────────────────────────────────────────────────────────────
 const trainings    = ref([])

@@ -1,57 +1,32 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
-import Login from '@/views/Login.vue'
-import Signup from '@/views/Signup.vue'
-import Dashboard from '@/views/Dashboard.vue'
-import EmployeeMasterlist from '@/views/employees/EmployeeMasterlist.vue'
-import EmployeeForm from '@/views/employees/EmployeeForm.vue'
-import BirthdayCelebrants from '@/views/employees/BirthdayCelebrants.vue'
-import DTRTransmittal from '@/views/dtr/DTRTransmittal.vue'
-import LeaveManagement from '@/views/leave/LeaveManagement.vue'
-import TOManagement from '@/views/to/TOManagement.vue'
-import Verification from '@/views/verification/Verification.vue'
-import TrackingReceiving from '@/views/tracking/TrackingReceiving.vue'
-import Signatories from '@/views/signatories/Signatories.vue'
-import AuditTransmittal from '@/views/audit/AuditTransmittal.vue'
-import ScheduleDatabase from '@/views/schedule/ScheduleDatabase.vue'
-import AIScanningTools from '@/views/ai/AIScanningTools.vue'
-import AccountManagement from '@/views/accounts/AccountManagement.vue'
-import TrainingsManagement from '@/views/trainings/TrainingsManagement.vue'
-import DepartmentManagement from '@/views/departments/DepartmentManagement.vue'
-import AuditHistory from '@/views/admin/AuditHistory.vue'
-import VersionHistory from '@/views/admin/VersionHistory.vue'
-import UserManual from '@/views/admin/UserManual.vue'
-import DiosAccount from '@/views/admin/DiosAccount.vue'
-import DiosSystemControl from '@/views/admin/DiosSystemControl.vue'
-import PasswordResetRequests from '@/views/admin/PasswordResetRequests.vue'
-
 const routes = [
-  { path: '/login', name: 'Login', component: Login, meta: { public: true } },
-  { path: '/signup', name: 'Signup', component: Signup, meta: { public: true, disabled: true } },
-  { path: '/', name: 'Dashboard', component: Dashboard },
-  { path: '/employees', name: 'EmployeeMasterlist', component: EmployeeMasterlist },
-  { path: '/employees/new', name: 'EmployeeNew', component: EmployeeForm },
-  { path: '/employees/:id/edit', name: 'EmployeeEdit', component: EmployeeForm },
-  { path: '/employees/birthdays', name: 'BirthdayCelebrants', component: BirthdayCelebrants },
-  { path: '/dtr', name: 'DTRTransmittal', component: DTRTransmittal },
-  { path: '/leave', name: 'LeaveManagement', component: LeaveManagement },
-  { path: '/to', name: 'TOManagement', component: TOManagement },
-  { path: '/verification', name: 'Verification', component: Verification },
-  { path: '/tracking', name: 'TrackingReceiving', component: TrackingReceiving },
-  { path: '/signatories', name: 'Signatories', component: Signatories },
-  { path: '/audit', name: 'AuditTransmittal', component: AuditTransmittal },
-  { path: '/schedule', name: 'ScheduleDatabase', component: ScheduleDatabase },
-  { path: '/ai-scanning', name: 'AIScanningTools', component: AIScanningTools },
-  { path: '/accounts', name: 'AccountManagement', component: AccountManagement, meta: { adminOrDios: true } },
-  { path: '/trainings', name: 'TrainingsManagement', component: TrainingsManagement },
-  { path: '/departments', name: 'DepartmentManagement', component: DepartmentManagement },
-  { path: '/audit-trail', name: 'AuditHistory', component: AuditHistory, meta: { adminOrDios: true } },
-  { path: '/version-history', name: 'VersionHistory', component: VersionHistory, meta: { adminOrDios: true } },
-  { path: '/user-manual', name: 'UserManual', component: UserManual },
-  { path: '/dios-account', name: 'DiosAccount', component: DiosAccount, meta: { adminOrDios: true } },
-  { path: '/dios-control', name: 'DiosSystemControl', component: DiosSystemControl, meta: { diosOnly: true } },
-  { path: '/password-resets', name: 'PasswordResetRequests', component: PasswordResetRequests, meta: { diosOnly: true } },
+  { path: '/login', name: 'Login', component: () => import('@/views/Login.vue'), meta: { public: true } },
+  { path: '/signup', name: 'Signup', component: () => import('@/views/Signup.vue'), meta: { public: true, disabled: true } },
+  { path: '/', name: 'Dashboard', component: () => import('@/views/Dashboard.vue') },
+  { path: '/employees', name: 'EmployeeMasterlist', component: () => import('@/views/employees/EmployeeMasterlist.vue') },
+  { path: '/employees/new', name: 'EmployeeNew', component: () => import('@/views/employees/EmployeeForm.vue') },
+  { path: '/employees/:id/edit', name: 'EmployeeEdit', component: () => import('@/views/employees/EmployeeForm.vue') },
+  { path: '/employees/birthdays', name: 'BirthdayCelebrants', component: () => import('@/views/employees/BirthdayCelebrants.vue') },
+  { path: '/dtr', name: 'DTRTransmittal', component: () => import('@/views/dtr/DTRTransmittal.vue') },
+  { path: '/leave', name: 'LeaveManagement', component: () => import('@/views/leave/LeaveManagement.vue') },
+  { path: '/to', name: 'TOManagement', component: () => import('@/views/to/TOManagement.vue') },
+  { path: '/verification', name: 'Verification', component: () => import('@/views/verification/Verification.vue') },
+  { path: '/tracking', name: 'TrackingReceiving', component: () => import('@/views/tracking/TrackingReceiving.vue') },
+  { path: '/signatories', name: 'Signatories', component: () => import('@/views/signatories/Signatories.vue') },
+  { path: '/audit', name: 'AuditTransmittal', component: () => import('@/views/audit/AuditTransmittal.vue') },
+  { path: '/schedule', name: 'ScheduleDatabase', component: () => import('@/views/schedule/ScheduleDatabase.vue') },
+  { path: '/ai-scanning', name: 'AIScanningTools', component: () => import('@/views/ai/AIScanningTools.vue') },
+  { path: '/accounts', name: 'AccountManagement', component: () => import('@/views/accounts/AccountManagement.vue'), meta: { adminOrDios: true } },
+  { path: '/trainings', name: 'TrainingsManagement', component: () => import('@/views/trainings/TrainingsManagement.vue') },
+  { path: '/departments', name: 'DepartmentManagement', component: () => import('@/views/departments/DepartmentManagement.vue') },
+  { path: '/audit-trail', name: 'AuditHistory', component: () => import('@/views/admin/AuditHistory.vue'), meta: { adminOrDios: true } },
+  { path: '/version-history', name: 'VersionHistory', component: () => import('@/views/admin/VersionHistory.vue'), meta: { adminOrDios: true } },
+  { path: '/user-manual', name: 'UserManual', component: () => import('@/views/admin/UserManual.vue') },
+  { path: '/dios-account', name: 'DiosAccount', component: () => import('@/views/admin/DiosAccount.vue'), meta: { adminOrDios: true } },
+  { path: '/dios-control', name: 'DiosSystemControl', component: () => import('@/views/admin/DiosSystemControl.vue'), meta: { diosOnly: true } },
+  { path: '/password-resets', name: 'PasswordResetRequests', component: () => import('@/views/admin/PasswordResetRequests.vue'), meta: { diosOnly: true } },
 ]
 
 const router = createRouter({

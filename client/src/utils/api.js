@@ -1,3 +1,5 @@
+import { getApiUrl } from '@/config/api'
+
 // API utility with automatic X-User-Id header injection
 export function createAuthFetch() {
     const originalFetch = window.fetch
@@ -29,8 +31,6 @@ export function createAuthFetch() {
 }
 
 // API client for making requests
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost/hrs-v2/server/api'
-
 function getUserId() {
     const userStr = sessionStorage.getItem('hris_user')
     if (userStr) {
@@ -45,7 +45,7 @@ function getUserId() {
 }
 
 async function request(endpoint, options = {}) {
-    const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`
+    const url = endpoint.startsWith('http') ? endpoint : getApiUrl(endpoint)
 
     const headers = {
         'Content-Type': 'application/json',

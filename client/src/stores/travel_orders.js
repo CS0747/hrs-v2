@@ -1,8 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useVersionHistory } from '@/composables/useVersionHistory'
+import { API_ENDPOINTS } from '@/config/api'
 
-const API_URL = 'http://localhost/hrs-v2/server/api/travel_orders.php'
+
+const API_URL = API_ENDPOINTS.TRAVEL_ORDERS
 
 export const useTravelOrderStore = defineStore('travelOrders', () => {
     const travelOrders = ref([])

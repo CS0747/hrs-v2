@@ -26,14 +26,38 @@ switch ($action) {
         if (!$username || !$password) sendError('Username and password required');
 
         $stmt = $conn->prepare(
-            'SELECT id, username, name, role, department, position
-             FROM users WHERE username = ? AND password = SHA2(?, 256) AND active = 1'
+            'SELECT id, username, password, name, role, department, position
+             FROM users WHERE username = ? AND active = 1'
         );
-        $stmt->bind_param('ss', $username, $password);
+        $stmt->bind_param('s', $username);
         $stmt->execute();
         $user = $stmt->get_result()->fetch_assoc();
 
+        $validPassword = false;
+        $needsRehash = false;
+
         if ($user) {
+            $storedPassword = $user['password'] ?? '';
+            if (password_get_info($storedPassword)['algo'] !== 0) {
+                $validPassword = password_verify($password, $storedPassword);
+                $needsRehash = $validPassword && password_needs_rehash($storedPassword, PASSWORD_DEFAULT);
+            } elseif (strlen($storedPassword) === 64 && hash_equals($storedPassword, hash('sha256', $password))) {
+                $validPassword = true;
+                $needsRehash = true;
+            }
+        }
+
+        if ($user && $validPassword) {
+            if ($needsRehash) {
+                $newHash = password_hash($password, PASSWORD_DEFAULT);
+                $rehashStmt = $conn->prepare('UPDATE users SET password = ? WHERE id = ?');
+                $rehashStmt->bind_param('si', $newHash, $user['id']);
+                $rehashStmt->execute();
+                $rehashStmt->close();
+            }
+
+            unset($user['password']);
+
             // Audit log
             $logStmt = $conn->prepare(
                 'INSERT INTO audit_logs (user_id, user_name, action, action_type, module, details, status)
@@ -56,6 +80,7 @@ switch ($action) {
     // POST /auth.php?action=signup
     case 'signup':
         if ($method !== 'POST') sendError('POST required', 405);
+        requireRole($conn, ['DIOS', 'Super Admin']);
         $data = json_decode(file_get_contents('php://input'), true);
         if (!$data) sendError('Invalid JSON body');
 
@@ -88,9 +113,10 @@ switch ($action) {
         try {
             $stmt = $conn->prepare(
                 'INSERT INTO users (username, password, name, role, department, position)
-                 VALUES (?, SHA2(?, 256), ?, ?, ?, ?)'
+                 VALUES (?, ?, ?, ?, ?, ?)'
             );
-            $stmt->bind_param('ssssss', $username, $password, $name, $role, $dept, $position);
+            $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+            $stmt->bind_param('ssssss', $username, $passwordHash, $name, $role, $dept, $position);
             
             if (!$stmt->execute()) {
                 throw new Exception('Failed to create account: ' . $stmt->error);
@@ -131,6 +157,11 @@ switch ($action) {
         $data = json_decode(file_get_contents('php://input'), true);
         if (!$id || !$data) sendError('Invalid request');
 
+        $currentUser = requireUser($conn);
+        if ((int)$currentUser['id'] !== $id && !checkPermission($conn, $currentUser['id'], 'Account Management', 'Edit')) {
+            denyAccess('Account Management', 'Edit');
+        }
+
         $name = trim($data['name']       ?? '');
         $role = trim($data['role']       ?? '');
         $dept = trim($data['department'] ?? '');
@@ -150,11 +181,17 @@ switch ($action) {
         $data = json_decode(file_get_contents('php://input'), true);
         if (!$id || !$data) sendError('Invalid request');
 
+        $currentUser = requireUser($conn);
+        if ((int)$currentUser['id'] !== $id && !checkPermission($conn, $currentUser['id'], 'Account Management', 'Edit')) {
+            denyAccess('Account Management', 'Edit');
+        }
+
         $newPass = trim($data['password'] ?? '');
         if (strlen($newPass) < 6) sendError('Password must be at least 6 characters');
 
-        $stmt = $conn->prepare('UPDATE users SET password = SHA2(?, 256) WHERE id = ?');
-        $stmt->bind_param('si', $newPass, $id);
+        $newHash = password_hash($newPass, PASSWORD_DEFAULT);
+        $stmt = $conn->prepare('UPDATE users SET password = ? WHERE id = ?');
+        $stmt->bind_param('si', $newHash, $id);
         $stmt->execute();
         sendJson(['message' => 'Password updated']);
         break;
@@ -164,6 +201,11 @@ switch ($action) {
         if ($method !== 'DELETE') sendError('DELETE required', 405);
         $id = (int)($_GET['id'] ?? 0);
         if (!$id) sendError('ID required');
+        $currentUser = requireUser($conn);
+        if (!checkPermission($conn, $currentUser['id'], 'Account Management', 'Delete')) {
+            denyAccess('Account Management', 'Delete');
+        }
+        if ((int)$currentUser['id'] === $id) sendError('Cannot delete your own account', 400);
 
         // Prevent deleting the last Super Admin
         $check = $conn->query("SELECT COUNT(*) as cnt FROM users WHERE role='Super Admin' AND active=1")->fetch_assoc();
@@ -306,8 +348,9 @@ switch ($action) {
                 }
 
                 // Update user password
-                $stmt = $conn->prepare('UPDATE users SET password = SHA2(?, 256) WHERE id = ?');
-                $stmt->bind_param('si', $newPassword, $targetUserId);
+                $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
+                $stmt = $conn->prepare('UPDATE users SET password = ? WHERE id = ?');
+                $stmt->bind_param('si', $newHash, $targetUserId);
                 if (!$stmt->execute()) {
                     throw new Exception('Failed to update password');
                 }

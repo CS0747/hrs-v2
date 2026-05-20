@@ -1,7 +1,9 @@
 import { ref, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { API_ENDPOINTS } from '@/config/api'
 
-const PERM_API = 'http://localhost/hrs-v2/server/api/module_permissions.php'
+
+const PERM_API = API_ENDPOINTS.MODULE_PERMISSIONS
 
 // Global permissions cache
 const permissionsCache = ref(null)
@@ -28,7 +30,7 @@ export function usePermissions() {
 
         permissionsLoading.value = true
         try {
-            const res = await fetch(PERM_API)
+            const res = await auth.apiFetch(PERM_API)
             const data = await res.json()
             permissionsCache.value = data.permissions || {}
             return permissionsCache.value
@@ -48,18 +50,17 @@ export function usePermissions() {
         // DIOS has all permissions
         if (role === 'DIOS') return true
 
-        // If no permissions loaded yet, allow (fail-open)
-        if (!permissionsCache.value) return true
+        if (!permissionsCache.value) return false
 
         // Check permission in cache
         const modulePerms = permissionsCache.value[module]
-        if (!modulePerms) return true // No restrictions defined
+        if (!modulePerms) return false
 
         const rolePerms = modulePerms[role]
-        if (!rolePerms) return true // No restrictions for this role
+        if (!rolePerms) return false
 
         const granted = rolePerms[action]
-        if (granted === undefined) return true // No restriction for this action
+        if (granted === undefined) return false
 
         return granted === true
     }

@@ -2,8 +2,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { useEmployeeStore } from '@/stores/employees'
 import { usePermissions } from '@/composables/usePermissions'
+import { API_ENDPOINTS } from '@/config/api'
 
-const API      = 'http://localhost/hrs-v2/server/api/departments.php'
+
+const API      = API_ENDPOINTS.DEPARTMENTS
 const empStore = useEmployeeStore()
 const { hasPermission, loadPermissions } = usePermissions()
 

@@ -27,6 +27,10 @@ function sendError($message, $code = 400) {
     sendJson(['error' => $message], $code);
 }
 
+function getRequestUserId() {
+    return (int)($_SERVER['HTTP_X_USER_ID'] ?? $_SERVER['HTTP_X_USERID'] ?? 0);
+}
+
 // Permission checking functions
 function getUserRole($conn, $userId) {
     if (!$userId || $userId <= 0) {
@@ -50,53 +54,85 @@ function getUserRole($conn, $userId) {
     return $user ? $user['role'] : null;
 }
 
-function checkPermission($conn, $userId, $module, $action) {
-    // If no user ID provided, fail-open for backward compatibility
-    // This allows the system to work while frontend is being updated
+function getUserById($conn, $userId) {
     if (!$userId || $userId <= 0) {
-        return true;
+        return null;
     }
-    
-    // Get user role
+
+    $stmt = $conn->prepare('SELECT id, username, name, role, department, position FROM users WHERE id = ? AND active = 1');
+    if (!$stmt) {
+        return null;
+    }
+
+    $stmt->bind_param('i', $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        return null;
+    }
+
+    $user = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    return $user ?: null;
+}
+
+function getCurrentUser($conn) {
+    return getUserById($conn, getRequestUserId());
+}
+
+function requireUser($conn) {
+    $user = getCurrentUser($conn);
+    if (!$user) {
+        sendError('Authentication required', 401);
+    }
+
+    return $user;
+}
+
+function requireRole($conn, $allowedRoles) {
+    $user = requireUser($conn);
+    if (!in_array($user['role'], $allowedRoles, true)) {
+        sendError('Access denied', 403);
+    }
+
+    return $user;
+}
+
+function checkPermission($conn, $userId, $module, $action) {
+    if (!$userId || $userId <= 0) {
+        return false;
+    }
+
     $role = getUserRole($conn, $userId);
-    
-    // If no valid role found, fail-open (user might not be in session)
     if (!$role) {
-        return true;
+        return false;
     }
-    
-    // DIOS role has unrestricted access
+
     if ($role === 'DIOS') {
         return true;
     }
-    
-    // Check module_permissions table
+
     $stmt = $conn->prepare(
         'SELECT granted FROM module_permissions WHERE module = ? AND role = ? AND action = ?'
     );
-    
     if (!$stmt) {
-        // Fail-open on database error for backward compatibility
-        return true;
+        return false;
     }
-    
+
     $stmt->bind_param('sss', $module, $role, $action);
     if (!$stmt->execute()) {
         $stmt->close();
-        // Fail-open on query error
-        return true;
+        return false;
     }
-    
+
     $result = $stmt->get_result();
     $permission = $result->fetch_assoc();
     $stmt->close();
-    
-    // If no permission record exists, fail-open (allow access for backward compatibility)
+
     if (!$permission) {
-        return true;
+        return false;
     }
-    
-    // Return true if granted = 1, false if granted = 0
+
     return (bool)$permission['granted'];
 }
 
@@ -109,8 +145,13 @@ function denyAccess($module, $action) {
     exit;
 }
 
-// CORS headers (adjust origin for production)
-header('Access-Control-Allow-Origin: *');
+// CORS headers
+$allowedOrigins = array_filter(array_map('trim', explode(',', getenv('HRIS_ALLOWED_ORIGINS') ?: 'http://localhost,http://localhost:5173,http://localhost:3000,http://127.0.0.1')));
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+if ($origin && in_array($origin, $allowedOrigins, true)) {
+    header("Access-Control-Allow-Origin: $origin");
+    header('Vary: Origin');
+}
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-User-ID');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {

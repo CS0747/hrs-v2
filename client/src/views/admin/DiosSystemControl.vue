@@ -1,10 +1,12 @@
-﻿<script setup>
+<script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import AppSelect from '@/components/AppSelect.vue'
+import { API_ENDPOINTS } from '@/config/api'
 
-const API = 'http://localhost/hrs-v2/server/api/dios_control.php'
+
+const API = API_ENDPOINTS.DIOS_CONTROL
 
 const auth   = useAuthStore()
 const router = useRouter()
@@ -43,7 +45,7 @@ async function loadStats() {
   statsLoading.value = true
   statsError.value   = ''
   try {
-    const res  = await fetch(`${API}?action=stats`)
+    const res  = await auth.apiFetch(`${API}?action=stats`)
     const data = await res.json()
     stats.value    = data.stats    ?? []
     dbSizeMb.value = data.db_size_mb ?? 0
@@ -80,7 +82,7 @@ async function runQuery() {
   queryResult.value  = null
   queryError.value   = ''
   try {
-    const res  = await fetch(`${API}?action=query`, {
+    const res  = await auth.apiFetch(`${API}?action=query`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ sql: q }),
@@ -121,7 +123,7 @@ const previewLimit   = 20
 
 async function loadTables() {
   try {
-    const res  = await fetch(`${API}?action=tables`)
+    const res  = await auth.apiFetch(`${API}?action=tables`)
     const data = await res.json()
     tableList.value = data.tables ?? []
   } catch { /* silent */ }
@@ -135,7 +137,7 @@ async function loadTableDetail(table) {
   previewTotal.value   = 0
   previewOffset.value  = 0
   try {
-    const res  = await fetch(`${API}?action=describe&table=${encodeURIComponent(table)}`)
+    const res  = await auth.apiFetch(`${API}?action=describe&table=${encodeURIComponent(table)}`)
     const data = await res.json()
     tableColumns.value = data.columns ?? []
   } catch { /* silent */ } finally {
@@ -147,7 +149,7 @@ async function loadTableDetail(table) {
 async function loadPreview(table, offset) {
   previewLoading.value = true
   try {
-    const res  = await fetch(`${API}?action=preview&table=${encodeURIComponent(table)}&limit=${previewLimit}&offset=${offset}`)
+    const res  = await auth.apiFetch(`${API}?action=preview&table=${encodeURIComponent(table)}&limit=${previewLimit}&offset=${offset}`)
     const data = await res.json()
     previewRows.value   = data.rows   ?? []
     previewTotal.value  = data.total  ?? 0
@@ -238,11 +240,12 @@ function buildDefaultPerms() {
   return perms
 }
 
-const PERM_API = 'http://localhost/hrs-v2/server/api/module_permissions.php'
+
+const PERM_API = API_ENDPOINTS.MODULE_PERMISSIONS
 
 async function loadPermsFromDB() {
   try {
-    const res  = await fetch(PERM_API)
+    const res  = await auth.apiFetch(PERM_API)
     const data = await res.json()
     if (data.permissions && Object.keys(data.permissions).length) {
       const defaults = buildDefaultPerms()
@@ -288,7 +291,7 @@ function togglePerm(role, action) {
 async function savePerms() {
   permError.value = ''
   try {
-    const res = await fetch(PERM_API, {
+    const res = await auth.apiFetch(PERM_API, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -310,10 +313,10 @@ async function savePerms() {
 async function resetPerms() {
   permError.value = ''
   try {
-    await fetch(`${PERM_API}?module=${encodeURIComponent(selectedMod.value)}`, { method: 'DELETE' })
+    await auth.apiFetch(`${PERM_API}?module=${encodeURIComponent(selectedMod.value)}`, { method: 'DELETE' })
     const defaults = buildDefaultPerms()
     actionPerms.value[selectedMod.value] = defaults[selectedMod.value]
-    await fetch(PERM_API, {
+    await auth.apiFetch(PERM_API, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
